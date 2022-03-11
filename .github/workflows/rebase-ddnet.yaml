@@ -16,5 +16,5 @@ jobs:
 
       - run: git remote add ddnet https://github.com/ddnet/ddnet
       - run: git fetch ddnet
-      - run: git rebase ddnet/main
+      - run: git rebase ddnet/master
       - run: git push origin HEAD:upstream-ddnet
