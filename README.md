@@ -30,7 +30,7 @@ Below are the changes made on top of the DDNet version:
 
 - Comments DDNet table creation.
 - Comments all DDNet commands related.
-- - Comments all DDNet config options related.
+- Comments all DDNet config options related.
 - Comments DDNet score thread initializer.
 - Implements a map rotation system.
 - Add new configs options: `sv_self_kill` and `sv_spectable`.
