@@ -246,7 +246,7 @@ public:
 	int m_SpawnTick;
 	int m_WeaponChangeTick;
 
-    // DDNet-Skeleton
+	// DDNet-Skeleton
 	int m_MaxHealth;
 	int m_MaxArmor;
 

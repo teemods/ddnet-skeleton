@@ -3106,9 +3106,9 @@ void CGameContext::OnConsoleInit()
 	Console()->Chain("sv_motd", ConchainSpecialMotdupdate, this);
 
 	// DDNet-Skeleton
-	Console()->Register("skip_map", "", CFGFLAG_SERVER|CFGFLAG_STORE, ConSkipMap, this, "Change map to the next in the rotation");
-	Console()->Register("queue_map", "s", CFGFLAG_SERVER|CFGFLAG_STORE, ConQueueMap, this, "Set the next map");
-	Console()->Register("add_map", "s", CFGFLAG_SERVER|CFGFLAG_STORE, ConAddMap, this, "Add a map to the maps rotation list");
+	Console()->Register("skip_map", "", CFGFLAG_SERVER | CFGFLAG_STORE, ConSkipMap, this, "Change map to the next in the rotation");
+	Console()->Register("queue_map", "s", CFGFLAG_SERVER | CFGFLAG_STORE, ConQueueMap, this, "Set the next map");
+	Console()->Register("add_map", "s", CFGFLAG_SERVER | CFGFLAG_STORE, ConAddMap, this, "Add a map to the maps rotation list");
 
 #define CONSOLE_COMMAND(name, params, flags, callback, userdata, help) m_pConsole->Register(name, params, flags, callback, userdata, help);
 #include <game/ddracecommands.h>

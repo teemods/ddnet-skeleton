@@ -348,7 +348,8 @@ void CGameContext::ConKill(IConsole::IResult *pResult, void *pUserData)
 	CPlayer *pPlayer = pSelf->m_apPlayers[pResult->m_ClientID];
 
 	// DDNet-Skeleton
-	if(!g_Config.m_SvSelfKill) {
+	if(!g_Config.m_SvSelfKill)
+	{
 		pSelf->SendChatTarget(pResult->m_ClientID, "You cannot kill your self.");
 		return;
 	}

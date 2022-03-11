@@ -150,7 +150,7 @@ public:
 
 	// DDNet-Skeleton
 	int m_aTeamscore[2];
-	
+
 	char m_aQueuedMap[MAX_MAP_LENGTH];
 	char m_aPreviousMap[MAX_MAP_LENGTH];
 
