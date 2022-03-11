@@ -15,7 +15,7 @@ After downloading the repository, you will need to add your repository remote an
 git remote remove origin
 git remote add origin YOUR_REPOSITORY_URL
 git branch -M main && git push -u origin main
-git checkout upstream && git push -u origin upstream
+git branch upstream && git push -u origin upstream
 ```
 
 You will create `main` and upstream. The `main` will be used to code your mod and the `upstream` will be used to keep your mod updated.
@@ -30,6 +30,7 @@ Below are the changes made on top of the DDNet version:
 
 - Comments DDNet table creation.
 - Comments all DDNet commands related.
+- - Comments all DDNet config options related.
 - Comments DDNet score thread initializer.
 - Implements a map rotation system.
 - Add new configs options: `sv_self_kill` and `sv_spectable`.
@@ -38,6 +39,7 @@ Below are the changes made on top of the DDNet version:
 - Add dynamic max health and dynamic max shield support.
 - Bring back the ammo amount parameter to give weapon function.
 - Bring back the damage parameter to projectile entity.
+- Bring back the teams system from Teeworlds.
 
 ## Important Instructions
 
