@@ -9,7 +9,7 @@ In order to create your mod, you will need to download this repository with the 
 git clone https://github.com/teeframe/ddnet-skeleton
 ```
 
-After downloading the repository, you will need to add your repository remote and create two branches with the following commands:
+After downloading the repository, you will need to add your repository remote and create two branches with the following commands **inside the repository folder:**
 
 ```bash
 git remote remove origin
