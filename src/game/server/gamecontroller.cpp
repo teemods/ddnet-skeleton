@@ -43,6 +43,14 @@ IGameController::IGameController(class CGameContext *pGameServer)
 	m_aNumSpawnPoints[2] = 0;
 
 	m_CurrentRecord = 0;
+
+    // DDNet-Skeleton
+    m_aQueuedMap[0] = 0;
+	m_aPreviousMap[0] = 0;
+
+	if(IsTeamplay()) {
+		m_aTeamscore[TEAM_RED] = m_aTeamscore[TEAM_BLUE] = 0;
+	}
 }
 
 IGameController::~IGameController() = default;
@@ -169,9 +177,25 @@ bool IGameController::CanSpawn(int Team, vec2 *pOutPos, int DDTeam)
 	if(Team == TEAM_SPECTATORS)
 		return false;
 
-	EvaluateSpawnType(&Eval, 0, DDTeam);
-	EvaluateSpawnType(&Eval, 1, DDTeam);
-	EvaluateSpawnType(&Eval, 2, DDTeam);
+    if (IsTeamplay())
+	{
+		Eval.m_FriendlyTeam = Team;
+
+		// first try own team spawn, then normal spawn and then enemy
+		EvaluateSpawnType(&Eval, 0 + (Team & 1), DDTeam);
+		if (!Eval.m_Got)
+		{
+			EvaluateSpawnType(&Eval, 0, DDTeam);
+			if (!Eval.m_Got)
+				EvaluateSpawnType(&Eval, 0 + ((Team + 1) & 1), DDTeam);
+		}
+	}
+	else
+	{
+	    EvaluateSpawnType(&Eval, 0, DDTeam);
+	    EvaluateSpawnType(&Eval, 1, DDTeam);
+	    EvaluateSpawnType(&Eval, 2, DDTeam);
+	}
 
 	*pOutPos = Eval.m_Pos;
 	return Eval.m_Got;
@@ -439,8 +463,18 @@ void IGameController::ResetGame()
 
 const char *IGameController::GetTeamName(int Team)
 {
-	if(Team == 0)
-		return "game";
+	// DDNet-Skeleton
+	if (IsTeamplay())
+	{
+		if (Team == TEAM_RED) 
+		    return "red Team";
+		else if (Team == TEAM_BLUE) 
+		    return "blue Team";
+	} else {
+        if(Team == 0)
+		    return "game";
+	}
+	
 	return "spectators";
 }
 
@@ -528,6 +562,10 @@ void IGameController::Tick()
 		{
 			StartRound();
 			m_RoundCount++;
+
+            if(m_RoundCount >= g_Config.m_SvRoundsPerMap) {
+                CycleMap();
+			}
 		}
 	}
 
@@ -551,8 +589,22 @@ void IGameController::Snap(int SnappingClient)
 	pGameInfoObj->m_RoundStartTick = m_RoundStartTick;
 	pGameInfoObj->m_WarmupTimer = m_Warmup;
 
-	pGameInfoObj->m_RoundNum = 0;
+	// pGameInfoObj->m_ScoreLimit = 0;
+	// pGameInfoObj->m_TimeLimit = g_Config.m_SvTimelimit;
+
+	pGameInfoObj->m_RoundNum = (str_length(g_Config.m_SvMapRotation) && g_Config.m_SvRoundsPerMap) ? g_Config.m_SvRoundsPerMap : 0;
 	pGameInfoObj->m_RoundCurrent = m_RoundCount + 1;
+
+	// DDNet-Skeleton
+	if(IsTeamplay()) {
+        CNetObj_GameData *pGameDataObj = (CNetObj_GameData *)Server()->SnapNewItem(NETOBJTYPE_GAMEDATA, 0, sizeof(CNetObj_GameData));
+	    if (!pGameDataObj)
+	    	return;
+	    pGameDataObj->m_TeamscoreRed = m_aTeamscore[TEAM_RED];
+	    pGameDataObj->m_TeamscoreBlue = m_aTeamscore[TEAM_BLUE];
+	    pGameDataObj->m_FlagCarrierRed = -1;
+	    pGameDataObj->m_FlagCarrierBlue = -1;
+	}
 
 	CCharacter *pChr;
 	CPlayer *pPlayer = SnappingClient != SERVER_DEMO_CLIENT ? GameServer()->m_apPlayers[SnappingClient] : 0;
@@ -580,23 +632,24 @@ void IGameController::Snap(int SnappingClient)
 		return;
 
 	pGameInfoEx->m_Flags =
-		GAMEINFOFLAG_TIMESCORE |
-		GAMEINFOFLAG_GAMETYPE_RACE |
-		GAMEINFOFLAG_GAMETYPE_DDRACE |
-		GAMEINFOFLAG_GAMETYPE_DDNET |
-		GAMEINFOFLAG_UNLIMITED_AMMO |
-		GAMEINFOFLAG_RACE_RECORD_MESSAGE |
+		// GAMEINFOFLAG_TIMESCORE |
+		// GAMEINFOFLAG_GAMETYPE_RACE |
+		// GAMEINFOFLAG_GAMETYPE_DDRACE |
+		// GAMEINFOFLAG_GAMETYPE_DDNET |
+		// GAMEINFOFLAG_UNLIMITED_AMMO |
+		// GAMEINFOFLAG_RACE_RECORD_MESSAGE |
 		GAMEINFOFLAG_ALLOW_EYE_WHEEL |
 		GAMEINFOFLAG_ALLOW_HOOK_COLL |
-		GAMEINFOFLAG_ALLOW_ZOOM |
-		GAMEINFOFLAG_BUG_DDRACE_GHOST |
+		// GAMEINFOFLAG_ALLOW_ZOOM |
+		// GAMEINFOFLAG_BUG_DDRACE_GHOST |
 		GAMEINFOFLAG_BUG_DDRACE_INPUT |
-		GAMEINFOFLAG_PREDICT_DDRACE |
+		// GAMEINFOFLAG_PREDICT_DDRACE |
 		GAMEINFOFLAG_PREDICT_DDRACE_TILES |
 		GAMEINFOFLAG_ENTITIES_DDNET |
 		GAMEINFOFLAG_ENTITIES_DDRACE |
 		GAMEINFOFLAG_ENTITIES_RACE |
-		GAMEINFOFLAG_RACE;
+		// GAMEINFOFLAG_RACE |
+		GAMEINFOFLAG_GAMETYPE_PLUS;
 	pGameInfoEx->m_Flags2 = 0;
 	pGameInfoEx->m_Version = GAMEINFO_CURVERSION;
 
@@ -624,6 +677,16 @@ void IGameController::Snap(int SnappingClient)
 		pRaceData->m_BestTime = round_to_int(m_CurrentRecord * 1000);
 		pRaceData->m_Precision = 0;
 		pRaceData->m_RaceFlags = protocol7::RACEFLAG_HIDE_KILLMSG | protocol7::RACEFLAG_KEEP_WANTED_WEAPON;
+
+        // DDNet-Skeleton
+		if(IsTeamplay()) {
+		    protocol7::CNetObj_GameDataTeam *pGameDataTeam = static_cast<protocol7::CNetObj_GameDataTeam *>(Server()->SnapNewItem(-protocol7::NETOBJTYPE_GAMEDATATEAM, 0, sizeof(protocol7::CNetObj_GameDataTeam)));
+			if(!pGameDataTeam)
+		    	return;
+				
+			pGameDataTeam->m_TeamscoreRed = m_aTeamscore[TEAM_RED];
+			pGameDataTeam->m_TeamscoreBlue = m_aTeamscore[TEAM_BLUE];
+		}
 	}
 
 	if(GameServer()->Collision()->m_pSwitchers)
@@ -721,7 +784,9 @@ int IGameController::ClampTeam(int Team)
 {
 	if(Team < 0)
 		return TEAM_SPECTATORS;
-	return 0;
+	if (IsTeamplay())
+		return Team & 1;
+	return Team;
 }
 
 int64_t IGameController::GetMaskForPlayerWorldEvent(int Asker, int ExceptID)
@@ -751,4 +816,185 @@ void IGameController::DoTeamChange(CPlayer *pPlayer, int Team, bool DoChatMsg)
 	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
 
 	// OnPlayerInfoChange(pPlayer);
+}
+
+// DDNet-Skeleton
+bool IGameController::IsFriendlyFire(int ClientID1, int ClientID2)
+{
+	if (ClientID1 == ClientID2)
+		return false;
+
+	if (IsTeamplay())
+	{
+		if (!GameServer()->m_apPlayers[ClientID1] || !GameServer()->m_apPlayers[ClientID2])
+			return false;
+
+		if (GameServer()->m_apPlayers[ClientID1]->GetTeam() == GameServer()->m_apPlayers[ClientID2]->GetTeam())
+			return true;
+	}
+	return false;
+}
+
+bool IGameController::IsTeamplay() 
+{
+	return m_GameFlags & GAMEFLAG_TEAMS;
+}
+
+
+void IGameController::QueueMap(const char *pToMap)
+{
+	str_copy(m_aQueuedMap, pToMap, sizeof(m_aQueuedMap));
+}
+
+bool IGameController::IsWordSeparator(char c)
+{
+	return c == ';' || c == ' ' || c == ',' || c == '\t';
+}
+
+void IGameController::GetWordFromList(char *pNextWord, const char *pList, int ListIndex)
+{
+	pList += ListIndex;
+	int i = 0;
+	while(*pList)
+	{
+		if (IsWordSeparator(*pList)) break;
+		pNextWord[i] = *pList;
+		pList++;
+		i++;
+	}
+	pNextWord[i] = 0;
+}
+
+void IGameController::GetMapRotationInfo(CMapRotationInfo *pMapRotationInfo)
+{
+	pMapRotationInfo->m_MapCount = 0;
+
+	if(!str_length(g_Config.m_SvMapRotation))
+		return;
+
+	int PreviousMapNumber = -1;
+	const char *pNextMap = g_Config.m_SvMapRotation;
+	const char *pCurrentMap = g_Config.m_SvMap;
+	const char *pPreviousMap = m_aPreviousMap;
+	bool insideWord = false;
+	char aBuf[128];
+	int i = 0;
+	while(*pNextMap)
+	{
+		if (IsWordSeparator(*pNextMap))
+		{
+			if (insideWord)
+				insideWord = false;
+		}
+		else // current char is not a seperator
+		{
+			if (!insideWord)
+			{
+				insideWord = true;
+				pMapRotationInfo->m_MapNameIndices[pMapRotationInfo->m_MapCount] = i;
+				GetWordFromList(aBuf, g_Config.m_SvMapRotation, i);
+				if (str_comp(aBuf, pCurrentMap) == 0)
+					pMapRotationInfo->m_CurrentMapNumber = pMapRotationInfo->m_MapCount;
+				if(pPreviousMap[0] && str_comp(aBuf, pPreviousMap) == 0)
+					PreviousMapNumber = pMapRotationInfo->m_MapCount;
+				pMapRotationInfo->m_MapCount++;
+			}
+		}
+		pNextMap++;
+		i++;
+	}
+	if((pMapRotationInfo->m_CurrentMapNumber < 0) && (PreviousMapNumber >= 0))
+	{
+		// The current map not found in the list (probably because this map is a custom one)
+		// Try to restore the rotation using the name of the previous map
+		pMapRotationInfo->m_CurrentMapNumber = PreviousMapNumber;
+	}
+}
+
+void IGameController::CycleMap()
+{
+	if(m_aQueuedMap[0] != 0)
+	{
+		char aBuf[256];
+		str_format(aBuf, sizeof(aBuf), "rotating to a queued map %s", m_aQueuedMap);
+		GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
+		ChangeMap(m_aQueuedMap);
+		m_aQueuedMap[0] = 0;
+		m_RoundCount = 0;
+		return;
+	}
+
+	if(!str_length(g_Config.m_SvMapRotation))
+		return;
+
+	// int PlayerCount = Server()->GetActivePlayerCount();
+
+	CMapRotationInfo pMapRotationInfo;
+	GetMapRotationInfo(&pMapRotationInfo);
+	
+	if (pMapRotationInfo.m_MapCount == 0)
+		return;
+
+	char aBuf[256] = {0};
+	int i=0;
+	if (g_Config.m_SvMapRotationRandom)
+	{
+		// handle random maprotation
+		int RandInt;
+		for ( ; i<32; i++)
+		{
+			int Min = 0;
+			int Max = pMapRotationInfo.m_MapCount-1;
+
+			RandInt = rand()%(Max-Min + 1) + Min; // TODO: USE A BETTER RANDOM INT
+			GetWordFromList(aBuf, g_Config.m_SvMapRotation, pMapRotationInfo.m_MapNameIndices[RandInt]);
+			// int MinPlayers = Server()->GetMinPlayersForMap(aBuf);
+			// if (RandInt != pMapRotationInfo.m_CurrentMapNumber && PlayerCount >= MinPlayers)
+			if(RandInt != pMapRotationInfo.m_CurrentMapNumber)
+				break;
+		}
+		i = RandInt;
+	}
+	else
+	{
+		// handle normal maprotation
+		i = pMapRotationInfo.m_CurrentMapNumber+1;
+		for ( ; i != pMapRotationInfo.m_CurrentMapNumber; i++)
+		{
+			if (i >= pMapRotationInfo.m_MapCount)
+			{
+				i = 0;
+				if (i == pMapRotationInfo.m_CurrentMapNumber)
+					break;
+			}
+			GetWordFromList(aBuf, g_Config.m_SvMapRotation, pMapRotationInfo.m_MapNameIndices[i]);
+			break;
+			// int MinPlayers = Server()->GetMinPlayersForMap(aBuf);
+			// if (PlayerCount >= MinPlayers)
+			// 	break;
+		}
+	}
+
+	if (i == pMapRotationInfo.m_CurrentMapNumber)
+	{
+		// couldnt find map with small enough minplayers number
+		i++;
+		if (i >= pMapRotationInfo.m_MapCount)
+			i = 0;
+		GetWordFromList(aBuf, g_Config.m_SvMapRotation, pMapRotationInfo.m_MapNameIndices[i]);
+	}
+
+	m_RoundCount = 0;
+
+    str_copy(m_aPreviousMap, g_Config.m_SvMap, sizeof(g_Config.m_SvMap));
+
+	char aBufMsg[256];
+	str_format(aBufMsg, sizeof(aBufMsg), "rotating map to %s", aBuf);
+	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
+	ChangeMap(aBuf);
+}
+
+void IGameController::SkipMap()
+{
+	CycleMap();
 }

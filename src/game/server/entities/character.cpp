@@ -24,6 +24,8 @@ CCharacter::CCharacter(CGameWorld *pWorld) :
 {
 	m_Health = 0;
 	m_Armor = 0;
+	m_MaxHealth = 10;
+	m_MaxArmor = 10;
 	m_StrongWeakID = 0;
 
 	// never intilize both to zero
@@ -199,7 +201,7 @@ void CCharacter::HandleNinja()
 		GameServer()->CreateDamageInd(m_Pos, 0, NinjaTime / Server()->TickSpeed(), Teams()->TeamMask(Team(), -1, m_pPlayer->GetCID()));
 	}
 
-	m_Armor = clamp(10 - (NinjaTime / 15), 0, 10);
+	m_Armor = clamp(m_MaxArmor - (NinjaTime / 15), 0, m_MaxArmor);
 
 	// force ninja Weapon
 	SetWeapon(WEAPON_NINJA);
@@ -868,17 +870,17 @@ void CCharacter::TickPaused()
 
 bool CCharacter::IncreaseHealth(int Amount)
 {
-	if(m_Health >= 10)
+	if(m_Health >= m_MaxHealth)
 		return false;
-	m_Health = clamp(m_Health + Amount, 0, 10);
+	m_Health = clamp(m_Health + Amount, 0, m_MaxHealth);
 	return true;
 }
 
 bool CCharacter::IncreaseArmor(int Amount)
 {
-	if(m_Armor >= 10)
+	if(m_Armor >= m_MaxArmor)
 		return false;
-	m_Armor = clamp(m_Armor + Amount, 0, 10);
+	m_Armor = clamp(m_Armor + Amount, 0, m_MaxArmor);
 	return true;
 }
 
@@ -1080,8 +1082,8 @@ void CCharacter::SnapCharacter(int SnappingClient, int ID)
 	if(m_pPlayer->GetCID() == SnappingClient || SnappingClient == SERVER_DEMO_CLIENT ||
 		(!g_Config.m_SvStrictSpectateMode && m_pPlayer->GetCID() == GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID))
 	{
-		Health = m_Health;
-		Armor = m_Armor;
+		Health = (int) m_Health * 10 / maximum(1, m_MaxHealth);
+		Armor = (int) m_Armor * 10 / maximum(1, m_MaxArmor);
 		if(m_aWeapons[m_Core.m_ActiveWeapon].m_Ammo > 0)
 			AmmoCount = (!m_FreezeTime) ? m_aWeapons[m_Core.m_ActiveWeapon].m_Ammo : 0;
 	}
@@ -2052,7 +2054,7 @@ void CCharacter::SetRescue()
 void CCharacter::DDRaceTick()
 {
 	mem_copy(&m_Input, &m_SavedInput, sizeof(m_Input));
-	m_Armor = (m_FreezeTime >= 0) ? 10 - (m_FreezeTime / 15) : 0;
+	m_Armor = (m_FreezeTime >= 0) ? m_MaxArmor - (m_FreezeTime / 15) : 0;
 	if(m_Input.m_Direction != 0 || m_Input.m_Jump != 0)
 		m_LastMove = Server()->Tick();
 
@@ -2196,7 +2198,7 @@ bool CCharacter::UnFreeze()
 {
 	if(m_FreezeTime > 0)
 	{
-		m_Armor = 10;
+		m_Armor = m_MaxArmor;
 		if(!m_aWeapons[m_Core.m_ActiveWeapon].m_Got)
 			m_Core.m_ActiveWeapon = WEAPON_GUN;
 		m_FreezeTime = 0;
@@ -2207,7 +2209,7 @@ bool CCharacter::UnFreeze()
 	return false;
 }
 
-void CCharacter::GiveWeapon(int Weapon, bool Remove)
+void CCharacter::GiveWeapon(int Weapon, bool Remove, int Ammo)
 {
 	if(Weapon == WEAPON_NINJA)
 	{
@@ -2225,7 +2227,7 @@ void CCharacter::GiveWeapon(int Weapon, bool Remove)
 	}
 	else
 	{
-		m_aWeapons[Weapon].m_Ammo = -1;
+		m_aWeapons[Weapon].m_Ammo = Ammo;
 	}
 
 	m_aWeapons[Weapon].m_Got = !Remove;

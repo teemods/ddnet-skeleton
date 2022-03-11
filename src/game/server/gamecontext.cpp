@@ -3087,8 +3087,8 @@ void CGameContext::OnConsoleInit()
 	Console()->Register("switch_open", "i[switch]", CFGFLAG_SERVER | CFGFLAG_GAME, ConSwitchOpen, this, "Whether a switch is deactivated by default (otherwise activated)");
 	Console()->Register("pause_game", "", CFGFLAG_SERVER, ConPause, this, "Pause/unpause game");
 	Console()->Register("change_map", "?r[map]", CFGFLAG_SERVER | CFGFLAG_STORE, ConChangeMap, this, "Change map");
-	Console()->Register("random_map", "?i[stars]", CFGFLAG_SERVER, ConRandomMap, this, "Random map");
-	Console()->Register("random_unfinished_map", "?i[stars]", CFGFLAG_SERVER, ConRandomUnfinishedMap, this, "Random unfinished map");
+	// Console()->Register("random_map", "?i[stars]", CFGFLAG_SERVER, ConRandomMap, this, "Random map");
+	// Console()->Register("random_unfinished_map", "?i[stars]", CFGFLAG_SERVER, ConRandomUnfinishedMap, this, "Random unfinished map");
 	Console()->Register("restart", "?i[seconds]", CFGFLAG_SERVER | CFGFLAG_STORE, ConRestart, this, "Restart in x seconds (0 = abort)");
 	Console()->Register("broadcast", "r[message]", CFGFLAG_SERVER, ConBroadcast, this, "Broadcast message");
 	Console()->Register("say", "r[message]", CFGFLAG_SERVER, ConSay, this, "Say in chat");
@@ -3104,6 +3104,11 @@ void CGameContext::OnConsoleInit()
 	Console()->Register("dump_antibot", "", CFGFLAG_SERVER, ConDumpAntibot, this, "Dumps the antibot status");
 
 	Console()->Chain("sv_motd", ConchainSpecialMotdupdate, this);
+
+	// DDNet-Skeleton
+	Console()->Register("skip_map", "", CFGFLAG_SERVER|CFGFLAG_STORE, ConSkipMap, this, "Change map to the next in the rotation");
+	Console()->Register("queue_map", "s", CFGFLAG_SERVER|CFGFLAG_STORE, ConQueueMap, this, "Set the next map");
+	Console()->Register("add_map", "s", CFGFLAG_SERVER|CFGFLAG_STORE, ConAddMap, this, "Add a map to the maps rotation list");
 
 #define CONSOLE_COMMAND(name, params, flags, callback, userdata, help) m_pConsole->Register(name, params, flags, callback, userdata, help);
 #include <game/ddracecommands.h>
@@ -3267,11 +3272,11 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 		char aVersion[128];
 		if(GIT_SHORTREV_HASH)
 		{
-			str_format(aVersion, sizeof(aVersion), "%s (%s)", GAME_VERSION, GIT_SHORTREV_HASH);
+			str_format(aVersion, sizeof(aVersion), "%s (%s)", GAME_MOD_VERSION, GIT_SHORTREV_HASH);
 		}
 		else
 		{
-			str_format(aVersion, sizeof(aVersion), "%s", GAME_VERSION);
+			str_format(aVersion, sizeof(aVersion), "%s", GAME_MOD_VERSION);
 		}
 		CTeeHistorian::CGameInfo GameInfo;
 		GameInfo.m_GameUuid = m_GameUuid;
@@ -3668,7 +3673,7 @@ bool CGameContext::IsClientPlayer(int ClientID) const
 
 CUuid CGameContext::GameUuid() const { return m_GameUuid; }
 const char *CGameContext::GameType() const { return m_pController && m_pController->m_pGameType ? m_pController->m_pGameType : ""; }
-const char *CGameContext::Version() const { return GAME_VERSION; }
+const char *CGameContext::Version() const { return GAME_MOD_SHORT_VERSION; }
 const char *CGameContext::NetVersion() const { return GAME_NETVERSION; }
 
 IGameServer *CreateGameServer() { return new CGameContext; }
@@ -4215,4 +4220,108 @@ bool CGameContext::RateLimitPlayerMapVote(int ClientID)
 		return true;
 	}
 	return false;
+}
+
+// DDNet-Skeleton
+bool CGameContext::MapExists(const char *pMapName)
+{
+	char aMapFilename[128];
+	str_format(aMapFilename, sizeof(aMapFilename), "%s.map", pMapName);
+
+	char aBuf[512];
+	return Storage()->FindFile(aMapFilename, "maps", IStorage::TYPE_ALL, aBuf, sizeof(aBuf));
+}
+
+void CGameContext::ConSkipMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	pSelf->m_pController->SkipMap();
+}
+
+void CGameContext::ConQueueMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+
+	const char *pMapName = pResult->GetString(0);
+
+	char aBuf[256];
+	if(pSelf->MapExists(pMapName))
+	{
+		str_format(aBuf, sizeof(aBuf), "Map '%s' will be the next map", pMapName);
+		pSelf->m_pController->QueueMap(pResult->GetString(0));
+	}
+	else
+	{
+		str_format(aBuf, sizeof(aBuf), "Unable to find map '%s'", pMapName);
+	}
+
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+}
+
+void CGameContext::ConAddMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+
+	if(pResult->NumArguments() != 1)
+		return;
+
+	const char *pMapName = pResult->GetString(0);
+	if(!str_utf8_check(pMapName))
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "Invalid (non UTF-8) filename");
+		return;
+	}
+
+	{
+		const char *pMapInList = pSelf->Config()->m_SvMapRotation;
+		const int Length = str_length(pMapName);
+		while(pMapInList)
+		{
+			pMapInList = str_find(pMapInList, pMapName);
+
+			if(pMapInList)
+			{
+				pMapInList += Length;
+				const char nextC = pMapInList[0];
+				if((nextC == 0) || pSelf->m_pController->IsWordSeparator(nextC))
+				{
+					pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "The map is already in the rotation list");
+					return;
+				}
+			}
+		}
+	}
+
+	char aBuf[256];
+	if(!pSelf->MapExists(pMapName))
+	{
+		str_format(aBuf, sizeof(aBuf), "Unable to find map %s", pMapName);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+
+		return;
+	}
+
+	char *pData = g_Config.m_SvMapRotation;
+	int MaxSize = sizeof(g_Config.m_SvMapRotation);
+	int i = 0;
+	for(i = 0; i < MaxSize; ++i)
+	{
+		if(pData[i] == 0)
+			break;
+	}
+	if(i + 1 + str_length(pMapName) >= MaxSize)
+	{
+		// Overflow
+		return;
+	}
+	pData[i] = ' ';
+	++i;
+	str_copy(pData + i, pMapName, MaxSize - i);
+
+	{
+		str_format(aBuf, sizeof(aBuf), "Map %s added to the rotation list", pMapName);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+	}
+
+	return;
 }

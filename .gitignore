@@ -121,3 +121,5 @@ tags
 *.user
 *.vcxproj
 *.zip
+
+build/autoexec.cfg

@@ -10,4 +10,13 @@
 #define CLIENT_VERSIONNR 15091
 extern const char *GIT_SHORTREV_HASH;
 #define GAME_NAME "DDNet"
+// DDNet-Skeleton
+#define GAME_MOD_NAME "DDNet-Skeleton"
+#define GAME_MOD_RELEASE_VERSION "1.0.0"
+
+#define GAME_TYPE_NAME "Skeleton"
+#define TEST_TYPE_NAME "TestSkeleton"
+
+#define GAME_MOD_VERSION GAME_VERSION ", " GAME_MOD_RELEASE_VERSION
+#define GAME_MOD_SHORT_VERSION "0.6.4, " GAME_MOD_RELEASE_VERSION
 #endif

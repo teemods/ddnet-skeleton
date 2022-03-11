@@ -26,29 +26,32 @@ CPickup::CPickup(CGameWorld *pGameWorld, int Type, int SubType, int Layer, int N
 
 void CPickup::Reset()
 {
-	/*if (g_pData->m_aPickups[m_Type].m_Spawndelay > 0)
-		m_SpawnTick = Server()->Tick() + Server()->TickSpeed() * g_pData->m_aPickups[m_Type].m_Spawndelay;
-	else
-		m_SpawnTick = -1;*/
+	// if (GetPickUpRespawnDelay(m_Type) > 0)
+	// 	m_SpawnTick = Server()->Tick() + Server()->TickSpeed() * GetPickUpRespawnDelay(m_Type);
+	// else
+	// 	m_SpawnTick = -1;
+
+	m_SpawnTick = -1;
 }
 
 void CPickup::Tick()
 {
 	Move();
-	/*// wait for respawn
-	if(m_SpawnTick > 0)
-	{
-		if(Server()->Tick() > m_SpawnTick)
-		{
-			// respawn
-			m_SpawnTick = -1;
+	// wait for respawn
+	// if(m_SpawnTick > 0)
+	// {
+	// 	if(Server()->Tick() > m_SpawnTick)
+	// 	{
+	// 		// respawn
+	// 		m_SpawnTick = -1;
 
-			if(m_Type == POWERUP_WEAPON)
-				GameServer()->CreateSound(m_Pos, SOUND_WEAPON_SPAWN);
-		}
-		else
-			return;
-	}*/
+	// 		if(m_Type == POWERUP_WEAPON)
+	// 			GameServer()->CreateSound(m_Pos, SOUND_WEAPON_SPAWN);
+	// 	}
+	// 	else
+	// 		return;
+	// }
+
 	// Check if a player intersected us
 	CCharacter *apEnts[MAX_CLIENTS];
 	int Num = GameWorld()->FindEntities(m_Pos, 20.0f, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
@@ -62,6 +65,7 @@ void CPickup::Tick()
 				continue;
 			bool Sound = false;
 			// player picked us up, is someone was hooking us, let them go
+			// int RespawnTime = -1;
 			switch(m_Type)
 			{
 			case POWERUP_HEALTH:
@@ -99,7 +103,7 @@ void CPickup::Tick()
 				{
 					pChr->GiveWeapon(m_Subtype);
 
-					//RespawnTime = g_pData->m_aPickups[m_Type].m_Respawntime;
+					// RespawnTime = GetPickUpRespawnTime(m_Type);
 
 					if(m_Subtype == WEAPON_GRENADE)
 						GameServer()->CreateSound(m_Pos, SOUND_PICKUP_GRENADE, pChr->TeamMask());
@@ -117,41 +121,42 @@ void CPickup::Tick()
 			{
 				// activate ninja on target player
 				pChr->GiveNinja();
-				//RespawnTime = g_pData->m_aPickups[m_Type].m_Respawntime;
+				// RespawnTime = GetPickUpRespawnTime(m_Type);
 
-				/*// loop through all players, setting their emotes
-					CCharacter *pC = static_cast<CCharacter *>(GameServer()->m_World.FindFirst(CGameWorld::ENTTYPE_CHARACTER));
-					for(; pC; pC = (CCharacter *)pC->TypeNext())
-					{
-						if (pC != pChr)
-							pC->SetEmote(EMOTE_SURPRISE, Server()->Tick() + Server()->TickSpeed());
-					}*/
+			    // loop through all players, setting their emotes
+				// CCharacter *pC = static_cast<CCharacter *>(GameServer()->m_World.FindFirst(CGameWorld::ENTTYPE_CHARACTER));
+				// for(; pC; pC = (CCharacter *)pC->TypeNext())
+				// {
+				// 	if (pC != pChr)
+				// 		pC->SetEmote(EMOTE_SURPRISE, Server()->Tick() + Server()->TickSpeed());
+				// }
 				break;
 			}
 			default:
 				break;
 			};
 
-			/*if(RespawnTime >= 0)
-			{
-				char aBuf[256];
-				str_format(aBuf, sizeof(aBuf), "pickup player='%d:%s' item=%d/%d",
-					pChr->GetPlayer()->GetCID(), Server()->ClientName(pChr->GetPlayer()->GetCID()), m_Type, m_Subtype);
-				GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
-				m_SpawnTick = Server()->Tick() + Server()->TickSpeed() * RespawnTime;
-			}*/
+			// if(RespawnTime >= 0)
+			// {
+			// 	char aBuf[256];
+			// 	str_format(aBuf, sizeof(aBuf), "pickup player='%d:%s' item=%d/%d",
+			// 		pChr->GetPlayer()->GetCID(), Server()->ClientName(pChr->GetPlayer()->GetCID()), m_Type, m_Subtype);
+			// 	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
+			// 	m_SpawnTick = Server()->Tick() + Server()->TickSpeed() * RespawnTime;
+			// }
 		}
 	}
 }
 
 void CPickup::TickPaused()
 {
-	/*if(m_SpawnTick != -1)
-		++m_SpawnTick;*/
+	// if(m_SpawnTick != -1)
+	// 	++m_SpawnTick;
 }
 
 void CPickup::Snap(int SnappingClient)
 {
+	// if(m_SpawnTick != -1 || NetworkClipped(SnappingClient))
 	if(NetworkClipped(SnappingClient))
 		return;
 
@@ -210,4 +215,33 @@ void CPickup::Move()
 		}
 		m_Pos += m_Core;
 	}
+}
+
+// DDNet-Skeleton
+// 0 = health, 1 = armor, 2 = weapon, 3 = ninja
+int CPickup::GetPickUpRespawnTime(int Type)
+{
+	if(Type == 0) {
+		return 15;
+	}
+	if(Type == 1) {
+		return 15;
+	}
+	if(Type == 2) {
+		return 15;
+	}
+	if(Type == 3) {
+		return 15;
+	}
+
+	return 0;
+}
+
+int CPickup::GetPickUpRespawnDelay(int Type)
+{
+	if(Type == 3) {
+		return 90;
+	}
+
+	return 0;
 }

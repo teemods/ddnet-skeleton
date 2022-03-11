@@ -1,0 +1,20 @@
+name: "Rebase from DDNet"
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  rebase-ddnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          ref: upstream-ddnet
+
+      - run: git remote add ddnet https://github.com/ddnet/ddnet
+      - run: git fetch ddnet
+      - run: git rebase ddnet/main
+      - run: git push origin HEAD:upstream-ddnet

@@ -1,272 +1,152 @@
-[![DDraceNetwork](https://ddnet.tw/ddnet-small.png)](https://ddnet.tw) [![](https://github.com/ddnet/ddnet/workflows/Build/badge.svg)](https://github.com/ddnet/ddnet/actions?query=workflow%3ABuild+event%3Apush+branch%3Amaster)
+# DDNet Skeleton
 
-Our own flavor of DDRace, a Teeworlds mod. See the [website](https://ddnet.tw) for more information.
+This repository aims to be the skeleton for creating modifications on top of the latest DDNet version. It currently modify the DDNet code so it can support teams, damage, ammo and pickup respawn features.
 
-Development discussions happen on #ddnet on Quakenet ([Webchat](http://webchat.quakenet.org/?channels=ddnet&uio=d4)) or on [Discord in the developer channel](https://discord.gg/xsEd9xu).
+## How to create your Modification
 
-You can get binary releases on the [DDNet website](https://ddnet.tw/downloads/), find it on [Steam](https://store.steampowered.com/app/412220/DDraceNetwork/) or [install from repository](#installation-from-repository).
-
-[Source Code Documentation](https://wiki.ddnet.tw/docs/) is available.
-
-Cloning
--------
-
-To clone this repository with full history and external libraries (~350 MB):
-
-    git clone --recursive https://github.com/ddnet/ddnet
-
-To clone this repository with full history when you have the necessary libraries on your system already (~220 MB):
-
-    git clone https://github.com/ddnet/ddnet
-
-To clone this repository with history since we moved the libraries to https://github.com/ddnet/ddnet-libs (~40 MB):
-
-    git clone --shallow-exclude=included-libs https://github.com/ddnet/ddnet
-
-To clone the libraries if you have previously cloned DDNet without them:
-
-    git submodule update --init --recursive
-
-Dependencies on Linux / macOS
------------------------------
-
-You can install the required libraries on your system, `touch CMakeLists.txt` and CMake will use the system-wide libraries by default. You can install all required dependencies and CMake on Debian or Ubuntu like this:
-
-    sudo apt install build-essential cmake git google-mock libcurl4-openssl-dev libssl-dev libfreetype6-dev libglew-dev libnotify-dev libogg-dev libopus-dev libopusfile-dev libpnglite-dev libsdl2-dev libsqlite3-dev libwavpack-dev python
-
-Or on CentOS, RedHat and AlmaLinux like this:
-
-    sudo yum install gcc gcc-c++ make cmake git python2 gtest-devel gmock-devel libcurl-devel openssl-devel freetype-devel glew-devel libnotify-devel libogg-devel opus-devel opusfile-devel pnglite-devel SDL2-devel sqlite-devel wavpack-devel
-
-Or on Arch Linux like this:
-
-    sudo pacman -S --needed base-devel cmake curl freetype2 git glew gmock libnotify opusfile python sdl2 sqlite wavpack
-
-There is an [AUR package for pnglite](https://aur.archlinux.org/packages/pnglite/). For instructions on installing it, see [AUR packages installation instructions on ArchWiki](https://wiki.archlinux.org/index.php/Arch_User_Repository#Installing_packages).
-
-On macOS you can use [homebrew](https://brew.sh/) to install build dependencies like this:
-
-    brew install cmake freetype glew googletest opusfile SDL2 wavpack
-
-If you don't want to use the system libraries, you can pass the `-DPREFER_BUNDLED_LIBS=ON` parameter to cmake.
-
-Building on Linux and macOS
----------------------------
-
-To compile DDNet yourself, execute the following commands in the source root:
-
-    mkdir build
-    cd build
-    cmake ..
-    make -j$(nproc)
-
-Pass the number of threads for compilation to `make -j`. `$(nproc)` in this case returns the number of processing units. DDNet requires additional libraries, that are bundled for the most common platforms (Windows, Mac, Linux, all x86 and x86\_64). The bundled libraries are now in the ddnet-libs submodule.
-
-The following is a non-exhaustive list of build arguments that can be passed to the `cmake` command-line tool in order to enable or disable options in build time:
-
-* **-DCMAKE_BUILD_TYPE=[Release|Debug|RelWithDebInfo|MinSizeRel]** <br>
-An optional CMake variable for setting the build type. If not set, defaults to "Release" if `-DDEV=ON` is **not** used, and "Debug" if `-DDEV=ON` is used. See `CMAKE_BUILD_TYPE` in CMake Documentation for more information.
-
-* **-DPREFER_BUNDLED_LIBS=[ON|OFF]** <br>
-Whether to prefer bundled libraries over system libraries. Setting to ON will make DDNet use third party libraries available in the `ddnet-libs` folder, which is the git-submodule target of the [ddnet-libs](https://github.com/ddnet/ddnet-libs) repository mentioned above -- Useful if you do not have those libraries installed and want to avoid building them. If set to OFF, will only use bundled libraries when system libraries are not found. Default value is OFF.
-
-* **-DWEBSOCKETS=[ON|OFF]** <br>
-Whether to enable WebSocket support for server. Setting to ON requires the `libwebsockets-dev` library installed. Default value is OFF.
-
-* **-DMYSQL=[ON|OFF]** <br>
-Whether to enable MySQL/MariaDB support for server. Requires at least MySQL 8.0 or MariaDB 10.2. Setting to ON requires the `libmariadbclient-dev` library installed, which are also provided as bundled libraries for the common platforms. Default value is OFF.
-
-   Note that the bundled MySQL libraries might not work properly on your system. If you run into connection problems with the MySQL server, for example that it connects as root while you chose another user, make sure to install your system libraries for the MySQL client. Make sure that the CMake configuration summary says that it found MySQL libs that were not bundled (no "using bundled libs").
-
-* **-DTEST_MYSQL=[ON|OFF]** <br>
-Whether to test MySQL/MariaDB support in GTest based tests. Note that this requires a running MySQL/MariaDB database on localhost with this setup:
-
-```
-CREATE DATABASE ddnet;
-CREATE USER 'ddnet'@'localhost' IDENTIFIED BY 'thebestpassword';
-GRANT ALL PRIVILEGES ON ddnet.* TO 'ddnet'@'localhost';
-FLUSH PRIVILEGES;
+In order to create your mod, you will need to download this repository with the following command. **Please do not fork this repository or download the ZIP file without the Git History**:
+```bash
+git clone https://github.com/teeframe/ddnet-skeleton
 ```
 
-* **-DAUTOUPDATE=[ON|OFF]** <br>
-Whether to enable the autoupdater. Packagers may want to disable this for their packages. Default value is ON for Windows and Linux.
-
-* **-DCLIENT=[ON|OFF]** <br>
-Whether to enable client compilation. If set to OFF, DDNet will not depend on Curl, Freetype, Ogg, Opus, Opusfile, and SDL2. Default value is ON.
-
-* **-DVIDEORECORDER=[ON|OFF]** <br>
-Whether to add video recording support using FFmpeg to the client. Default value is ON.
-
-Dependencies needed on debian: `libx264-dev libavfilter-dev libavdevice-dev libavformat-dev libavcodec-extra libavutil-dev`
-
-* **-DDOWNLOAD_GTEST=[ON|OFF]** <br>
-Whether to download and compile GTest. Useful if GTest is not installed and, for Linux users, there is no suitable package providing it. Default value is OFF.
-
-* **-DDEV=[ON|OFF]** <br>
-Whether to optimize for development, speeding up the compilation process a little. If enabled, don't generate stuff necessary for packaging. Setting to ON will set CMAKE\_BUILD\_TYPE to Debug by default. Default value is OFF.
-
-* **-DUPNP=[ON|OFF]** <br>
-Whether to enable UPnP support for the server.
-You need to install `libminiupnpc-dev` on Debian, `miniupnpc` on Arch Linux.
-
-* **-GNinja** <br>
-Use the Ninja build system instead of Make. This automatically parallizes the build and is generally faster. Compile with `ninja` instead of `make`. Install Ninja with `sudo apt install ninja-build` on Debian, `sudo pacman -S --needed ninja` on Arch Linux.
-
-* **-DCMAKE_CXX_LINK_FLAGS=[FLAGS]** <br>
-Custom flags to set for compiler when linking. With clang++ as the compiler this can be [used to link](https://github.com/rui314/mold#how-to-use) with [mold](https://github.com/rui314/mold), speeds up linking by a factor of ~10:
+After downloading the repository, you will need to add your repository remote and create two branches with the following commands:
 
 ```bash
-CC=clang CXX=clang++ cmake -DCMAKE_CXX_LINK_FLAGS="--ld-path=/usr/bin/mold" .
+git remote remove origin
+git remote add origin YOUR_REPOSITORY_URL
+git branch -M main && git push -u origin main
+git checkout upstream && git push -u origin upstream
 ```
 
-Running tests (Debian/Ubuntu)
------------------------------
+You will create `main` and upstream. The `main` will be used to code your mod and the `upstream` will be used to keep your mod updated.
 
-In order to run the tests, you need to install the following library `libgtest-dev`.
+This repository comes with an automatic Github Action, **Rebase from Skeleton**, that will sync the `upstream` changes from the skeleton to your `upstream` branch every day. In order to use that you need to activate Actions within **Actions Tab** in your repository.
 
-This library isn't compiled, so you have to do it:
-```bash
-sudo apt install libgtest-dev
-cd /usr/src/gtest
-sudo cmake CMakeLists.txt
-sudo make -j8
- 
-# copy or symlink libgtest.a and libgtest_main.a to your /usr/lib folder
-sudo cp lib/*.a /usr/lib
-```
+This repository also comes with a Github Action that syncs with the DDNet repository. **The Rebase from DDNet action should be removed from your repository.**
 
-To run the tests you must target `run_tests` with make:
-`make run_tests`
+## What changes?
 
-Code formatting
----------------
-We use clang-format 10 to format the C++ code of this project. Execute `scripts/fix_style.py` after changing the code to ensure code is formatted properly, a GitHub central style checker will do the same and prevent your change from being submitted.
+Below are the changes made on top of the DDNet version:
 
-On Arch Linux you can install clang-format 10 using the [clang-format-static-bin AUR package](https://aur.archlinux.org/packages/clang-format-static-bin/). On macOS you can install clang-format 10 using a [homebrew tap](https://github.com/r-lib/homebrew-taps):
-```bash
-brew install r-lib/taps/clang-format@10
-sudo ln -s /opt/homebrew/Cellar/clang-format@10/10.0.1/bin/clang-format /opt/homebrew/bin/clang-format-10
-```
+- Comments DDNet table creation.
+- Comments all DDNet commands related.
+- Comments DDNet score thread initializer.
+- Implements a map rotation system.
+- Add new configs options: `sv_self_kill` and `sv_spectable`.
+- Add mod name constant that displays on chat (among with the server browser game type).
+- Add version constants after DDNet version.
+- Add dynamic max health and dynamic max shield support.
+- Bring back the ammo amount parameter to give weapon function.
+- Bring back the damage parameter to projectile entity.
 
-Using AddressSanitizer + UndefinedBehaviourSanitizer or Valgrind's Memcheck
----------------------------------------------------------------------------
-ASan+UBSan and Memcheck are useful to find code problems more easily. Please use them to test your changes if you can.
+## Important Instructions
 
-For ASan+UBSan compile with:
-```bash
-CC=clang CXX=clang++ CXXFLAGS="-fsanitize=address,undefined -fsanitize-recover=address,undefined -fno-omit-frame-pointer" CFLAGS="-fsanitize=address,undefined -fsanitize-recover=address,undefined -fno-omit-frame-pointer" cmake -DCMAKE_BUILD_TYPE=Debug .
-make
-```
-and run with:
-```bash
-UBSAN_OPTIONS=log_path=./SAN:print_stacktrace=1:halt_on_errors=0 ASAN_OPTIONS=log_path=./SAN:print_stacktrace=1:check_initialization_order=1:detect_leaks=1:halt_on_errors=0 ./DDNet
-```
+Below are some instructions you should be aware of for game type modification.
 
-Check the SAN.\* files afterwards. This finds more problems than memcheck, runs faster, but requires a modern GCC/Clang compiler.
+### Mod Version
 
-For valgrind's memcheck compile a normal Debug build and run with: `valgrind --tool=memcheck ./DDNet`
-Expect a large slow down.
+`src/game/version.h` - Change the information about your mod.
 
-Building on Windows with Visual Studio
---------------------------------------
+***Editable Constants***
 
-Download and install some version of [Microsoft Visual Studio](https://www.visualstudio.com/) (as of writing, MSVS Community 2017) with **C++ support**, install [Python 3](https://www.python.org/downloads/) **for all users** and install [CMake](https://cmake.org/download/#latest).
+- `GAME_MOD_NAME` - Game mod name.
+- `GAME_MOD_RELEASE_VERSION` - Game mod version.
+- `GAME_TYPE_NAME` - In game mod name (Server browser).
+- `TEST_TYPE_NAME` - In game mod name on testing (Server browser).
 
-Start CMake and select the source code folder (where DDNet resides, the directory with `CMakeLists.txt`). Additionally select a build folder, e.g. create a build subdirectory in the source code directory. Click "Configure" and select the Visual Studio generator (it should be pre-selected, so pressing "Finish" will suffice). After configuration finishes and the "Generate" reactivates, click it. When that finishes, click "Open Project". Visual Studio should open. You can compile the DDNet client by right-clicking the DDNet project (not the solution) and select "Select as StartUp project". Now you should be able to compile DDNet by clicking the green, triangular "Run" button.
+### Game Type
 
-Cross-compiling on Linux to Windows x86/x86\_64
------------------------------------------------
+- `src/game/server/gamecontroller.cpp ~ m_GameFlags` - Defines the type of game mode.
 
-Install MinGW cross-compilers of the form `i686-w64-mingw32-gcc` (32 bit) or
-`x86_64-w64-mingw32-gcc` (64 bit). This is probably the hard part. ;)
+***Possible Values***
 
-Then add `-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mingw64.toolchain` to the
-**initial** CMake command line.
+- `0` - Unified Team
+- `GAMEFLAG_TEAMS` - Red and Blue team
+- `GAMEFLAG_TEAMS | GAMEFLAG_FLAGS` - Red and Blue team with Flags
 
-Cross-compiling on Linux to macOS
----------------------------------
+### Mod Information
 
-Install [osxcross](https://github.com/tpoechtrager/osxcross), then add
-`-DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/darwin.toolchain` and
-`-DCMAKE_OSX_SYSROOT=/path/to/osxcross/target/SDK/MacOSX10.11.sdk/` to the
-**initial** CMake command line.
+- `src/game/server/ddracechat.cpp ~ ConInfo` - Changes the /info messages command.
+- `src/game/server/ddracechat.cpp ~ ConCredits` - Changes the /credits messages command.
+- `src/game/server/ddracechat.cpp ~ ConSettings` - Changes the /settings listing messages command.
 
-Install `dmg` and `hfsplus` from
-[libdmg-hfsplus](https://github.com/mozilla/libdmg-hfsplus) and `newfs_hfs`
-from
-[diskdev\_cmds](http://pkgs.fedoraproject.org/repo/pkgs/hfsplus-tools/diskdev_cmds-540.1.linux3.tar.gz/0435afc389b919027b69616ad1b05709/diskdev_cmds-540.1.linux3.tar.gz)
-to unlock the `package_dmg` target that outputs a macOS disk image.
+### Game Information Flags
 
-Importing the official DDNet Database
--------------------------------------
+- `src/game/server/gamecontroller.cpp ~ pGameInfoEx->m_Flags` - Some instructions about how the server works for the client.
 
-```bash
-$ wget https://ddnet.tw/stats/ddnet-sql.zip
-$ unzip ddnet-sql.zip
-$ yaourt -S mariadb mysql-connector-c++
-$ mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
-$ systemctl start mariadb
-$ mysqladmin -u root password 'PW'
-$ mysql -u root -p'PW'
-MariaDB [(none)]> create database teeworlds; create user 'teeworlds'@'localhost' identified by 'PW2'; grant all privileges on teeworlds.* to 'teeworlds'@'localhost'; flush privileges;
-# this takes a while, you can remove the KEYs in record_race.sql to trade performance in queries
-$ mysql -u teeworlds -p'PW2' teeworlds < ddnet-sql/record_*.sql
+***Info Flags***
 
-$ cat mine.cfg
-sv_use_sql 1
-add_sqlserver r teeworlds record teeworlds "PW2" "localhost" "3306"
-add_sqlserver w teeworlds record teeworlds "PW2" "localhost" "3306"
+- `GAMEINFOFLAG_TIMESCORE` - Uses time scoring on Tab and Top 1,2 instead of points scoring.
+- `GAMEINFOFLAG_UNLIMITED_AMMO` - Send information to the client that all guns have unlimited ammo.
+- `GAMEINFOFLAG_RACE_RECORD_MESSAGE` - Send information to the client that the server may send a "new record" message on chat.
+- `GAMEINFOFLAG_ALLOW_EYE_WHEEL` - Enable eye wheel on the emojis menu on client side.
+- `GAMEINFOFLAG_ALLOW_HOOK_COLL` - ???
 
-$ mkdir build
-$ cd build
-$ cmake -DMYSQL=ON ..
-$ make -j8
-$ ./DDNet-Server -f mine.cfg
-```
+***Other Flags***
 
-<a href="https://repology.org/metapackage/ddnet/versions">
-    <img src="https://repology.org/badge/vertical-allrepos/ddnet.svg?header=" alt="Packaging status" align="right">
-</a>
+- `GAMEINFOFLAG_BUG_DDRACE_GHOST` - Fix a bug with ghost recording on client side.
+- `GAMEINFOFLAG_BUG_DDRACE_INPUT` - Fix motion bug in specific situations on client side (Example: try to move with chat enabled).
+- `GAMEINFOFLAG_PREDICT_DDRACE` - Enable DDrace prediction situations (???).
+- `GAMEINFOFLAG_PREDICT_DDRACE_TILES` - Enable DDRace prediction tiles (Remove if your mod changes the DDRace tiles).
+- `GAMEINFOFLAG_ENTITIES_DDNET` - Send to the client that the server uses the DDRace entities.
 
-Installation from Repository
-----------------------------
+***Game Flags***
 
-Debian/Ubuntu
+- `GAMEINFOFLAG_GAMETYPE_DDNET` - Send information to the client that the game mode is DDNet.
+- `GAMEINFOFLAG_GAMETYPE_PLUS` - Send information to the client that the game mode is Vanilla+ (Supports Eye Wheel).
 
-```bash
-$ apt-get install ddnet
+***Legacy Flags***
 
-```
+- `GAMEINFOFLAG_GAMETYPE_RACE` - Do the same thing as `GAMEINFOFLAG_GAMETYPE_DDNET` but for older clients.
+- `GAMEINFOFLAG_GAMETYPE_DDRACE` - Do the same thing as `GAMEINFOFLAG_GAMETYPE_DDNET` but for older clients.
+- `GAMEINFOFLAG_ENTITIES_DDRACE` - Do the same thing as `GAMEINFOFLAG_ENTITIES_DDNET` but for older clients.
+- `GAMEINFOFLAG_ENTITIES_RACE` - Do the same thing as `GAMEINFOFLAG_ENTITIES_DDNET` but for older clients.
 
-MacOS
+### Game Context
 
-```bash
-$ brew install --cask ddnet
-```
+Important files/functions for how the game handles the rounds, teams, points, player management and time limit.
 
-Fedora
+***Default GameController***
 
-```bash
-$ dnf install ddnet
-```
+- `src/game/server/gamecontroller.cpp ~ IGameController` - Control the start of the game context (Set sudden death, teams points and others).
+- `src/game/server/gamecontroller.cpp ~ GetTeamName` - Define the teams name (Also for unified team).
+- `src/game/server/gamecontroller.cpp ~ OnEntity` - Handle spawn entities on the map.
+- `src/game/server/gamecontroller.cpp ~ StartRound` - Control the start of the round (Also control if the round will start or not).
+- `src/game/server/gamecontroller.cpp ~ EndRound` - Control the end the round.
+- `src/game/server/gamecontroller.cpp ~ GetAutoTeam` - Define the start team for new players.
+- `src/game/server/gamecontroller.cpp ~ Snap` - Control the information about team scoring, rounds limit, current round, points limits, time limits and others.
+(Set CNetObj_GameData to enable team points display on right-down).
 
-Arch Linux
+***Mod GameController***
 
-```bash
-$ yay -S ddnet
-```
+- `src/game/server/gamemodes/DDRace.cpp ~ HandleCharacterTiles` - Handle the tiles actions when player relay on it.
+- `src/game/server/gamemodes/DDRace.cpp ~ OnCharacterSpawn` - Handle the character spawn (Give specific weapons, set health, set shield).
+- `src/game/server/gamemodes/DDRace.cpp ~ OnPlayerConnect` - Handle the player connection (get data, spawn, login, etc...)
+- `src/game/server/gamemodes/DDRace.cpp ~ OnPlayerDisconnect` - Handle the player disconnection (get rebalanced, penalty, etc...)
+- `src/game/server/gamemodes/DDRace.cpp ~ DoTeamChange` - Handle the player change team action (can be used to check if the player can change team).
 
-FreeBSD
+***Other Contexts***
 
-```bash
-$ pkg install DDNet
-```
+- `src/game/server/gamecontext.cpp ~ OnInit` - Control tunings such as player collision, hook collision (Also to change DDNet gun & shotgun tunning).
+- `src/game/server/gamecontext.cpp ~ ResetTuning` - Change tunning reset params (Also to change DDNet gun & shotgun tunning).
 
-Benchmarking
-------------
+- `src/game/server/score.cpp ~ CScore` - To re-enable the top score thread by DDNet.
+- `src/game/server/score.cpp ~ LoadPlayerData` - To re-enable the player score thread by DDNet.
 
-DDNet is available in the [Phoronix Test Suite](https://openbenchmarking.org/test/pts/ddnet). If you have PTS installed you can easily benchmark DDNet on your own system like this:
+### Weapons & Damage
 
-```bash
-$ phoronix-test-suite benchmark ddnet
-```
+Important files/functions if you would like to change how weapons and projectiles works.
+
+***Character***
+- `src/game/server/entities/character.cpp ~ FireWeapon` - Handle what kind of thing every weapon will throw (To revert DDNet changes).
+- `src/game/server/entities/character.cpp ~ TakeDamage` - Handle how the player hit will take the damage.
+
+***Projectile***
+- `src/game/server/entities/projectile.cpp ~ GetPos` - Handle the position calculation of the projectile.
+- `src/game/server/entities/projectile.cpp ~ Tick` - Handle the tick of the projectile (if have new position, what will happen if it reach something).
+
+***Pick Up***
+- `src/game/server/entities/pickup.cpp ~ Reset` - Handle the PickUp respawn delay (To revert DDNet changes).
+- `src/game/server/entities/pickup.cpp ~ Tick` - Handle the PickUp respawn time and ammo giving (To revert DDNet changes).
+- `src/game/server/entities/pickup.cpp ~ TickPaused` - Handle the PickUp respawn time on paused (To revert DDNet changes).
+- `src/game/server/entities/pickup.cpp ~ Snap` - Handle the PickUp visibility on cooldown (Tor revert DDNet changes).
