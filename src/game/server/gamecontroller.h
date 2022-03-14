@@ -156,6 +156,7 @@ public:
 
 	bool IsTeamplay();
 	void DoWinCheck();
+	void DoTeamBalancingCheck();
 
 	struct CMapRotationInfo
 	{

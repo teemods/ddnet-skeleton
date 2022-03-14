@@ -405,6 +405,9 @@ private:
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 
 	// DDNet-Skeleton
+	static void ConSwapTeams(IConsole::IResult *pResult, void *pUserData);
+	static void ConShuffleTeams(IConsole::IResult *pResult, void *pUserData);
+
 	bool MapExists(const char *pMapName);
 	static void ConSkipMap(IConsole::IResult *pResult, void *pUserData);
 	static void ConQueueMap(IConsole::IResult *pResult, void *pUserData);

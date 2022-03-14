@@ -19,6 +19,10 @@ CPlayer::CPlayer(CGameContext *pGameServer, int ClientID, int Team)
 	m_ClientID = ClientID;
 	m_Team = GameServer()->m_pController->ClampTeam(Team);
 	m_NumInputs = 0;
+
+	// DDNet-Skeleton
+	m_ScoreStartTick = Server()->Tick();
+
 	Reset();
 	GameServer()->Antibot()->OnPlayerInit(m_ClientID);
 }
@@ -263,6 +267,9 @@ void CPlayer::Tick()
 		++m_JoinTick;
 		++m_LastActionTick;
 		++m_TeamChangeTick;
+
+		// DDNet-Skeleton
+		++m_ScoreStartTick;
 	}
 
 	m_TuneZoneOld = m_TuneZone; // determine needed tunings with viewpos

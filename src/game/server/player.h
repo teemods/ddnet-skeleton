@@ -112,6 +112,9 @@ public:
 		int m_Max;
 	} m_Latency;
 
+	// DDNet-Skeleton
+	int m_ScoreStartTick;
+
 private:
 	CCharacter *m_pCharacter;
 	int m_NumInputs;

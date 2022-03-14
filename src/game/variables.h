@@ -208,6 +208,8 @@ MACRO_CONFIG_INT(SvSpectable, sv_spectable, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GA
 
 MACRO_CONFIG_INT(SvTimeLimit, sv_time_limit, 0, 0, 1000, CFGFLAG_SERVER, "Time limit in minutes (0 disables)")
 MACRO_CONFIG_INT(SvScoreLimit, sv_score_limit, 0, 0, 1000, CFGFLAG_SERVER, "Score limit (0 disables)")
+MACRO_CONFIG_INT(SvAutoTeamBalance, sv_team_balance, 0, 0, 1, CFGFLAG_SERVER, "Enables autobalancing teams system")
+MACRO_CONFIG_INT(SvAutoTeamBalanceTime, sv_team_balance_time, 1, 0, 1000, CFGFLAG_SERVER, "How many minutes to wait before autobalancing teams")
 
 MACRO_CONFIG_STR(SvMapRotation, sv_map_rotation, 768, "", CFGFLAG_SERVER, "Maps to rotate between")
 MACRO_CONFIG_INT(SvMapRotationRandom, sv_map_rotation_random, 0, 0, 1, CFGFLAG_SERVER, "When enabled, next map in rotation will be chosen randomly")
