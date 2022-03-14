@@ -1,4 +1,4 @@
-<p align="center"><img src="https://teeframe.com/img/ddnet-skeleton-logo.png" alt="DDNet-Skeleton Logo"></p>
+<p align="center"><img src="https://teeframe.com/img/ddnet-skeleton/logo.png" alt="DDNet-Skeleton Logo"></p>
 
 # DDNet Skeleton
 
