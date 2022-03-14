@@ -862,11 +862,11 @@ void IGameController::DoWinCheck()
 	if(m_GameOverTick != -1 || m_Warmup || !GameServer()->m_World.m_ResetRequested)
 		return;
 
-    // Time Limit check
+	// Time Limit check
 	if(g_Config.m_SvTimeLimit > 0 && (Server()->Tick() - m_RoundStartTick) >= g_Config.m_SvTimeLimit * Server()->TickSpeed() * 60)
 		EndRound();
 
-    // Score Limit check
+	// Score Limit check
 	if(IsTeamplay())
 	{
 		// check score win condition
