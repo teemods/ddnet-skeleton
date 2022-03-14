@@ -5,9 +5,9 @@
 #include <game/server/gamecontext.h>
 #include <game/server/player.h>
 
+#include <game/generated/server_data.h>
 #include <game/server/teams.h>
 #include <game/version.h>
-#include <game/generated/server_data.h>
 
 #include "character.h"
 
