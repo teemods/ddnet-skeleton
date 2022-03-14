@@ -183,12 +183,12 @@ bool IGameController::CanSpawn(int Team, vec2 *pOutPos, int DDTeam)
 		Eval.m_FriendlyTeam = Team;
 
 		// first try own team spawn, then normal spawn and then enemy
-		EvaluateSpawnType(&Eval, 0 + (Team & 1), DDTeam);
+		EvaluateSpawnType(&Eval, 1 + Team, DDTeam);
 		if(!Eval.m_Got)
 		{
 			EvaluateSpawnType(&Eval, 0, DDTeam);
 			if(!Eval.m_Got)
-				EvaluateSpawnType(&Eval, 0 + ((Team + 1) & 1), DDTeam);
+				EvaluateSpawnType(&Eval, 1 + (1 - Team), DDTeam);
 		}
 	}
 	else
@@ -573,6 +573,8 @@ void IGameController::Tick()
 		}
 	}
 
+	DoWinCheck();
+
 	DoActivityCheck();
 }
 
@@ -594,7 +596,7 @@ void IGameController::Snap(int SnappingClient)
 	pGameInfoObj->m_WarmupTimer = m_Warmup;
 
 	// pGameInfoObj->m_ScoreLimit = 0;
-	// pGameInfoObj->m_TimeLimit = g_Config.m_SvTimelimit;
+	// pGameInfoObj->m_TimeLimit = g_Config.m_SvTimeLimit;
 
 	pGameInfoObj->m_RoundNum = (str_length(g_Config.m_SvMapRotation) && g_Config.m_SvRoundsPerMap) ? g_Config.m_SvRoundsPerMap : 0;
 	pGameInfoObj->m_RoundCurrent = m_RoundCount + 1;
@@ -846,6 +848,12 @@ bool IGameController::IsTeamplay()
 	return m_GameFlags & GAMEFLAG_TEAMS;
 }
 
+void IGameController::DoWinCheck()
+{
+	if(g_Config.m_SvTimeLimit > 0 && (Server()->Tick() - m_RoundStartTick) >= g_Config.m_SvTimeLimit * Server()->TickSpeed() * 60)
+		EndRound();
+}
+
 void IGameController::QueueMap(const char *pToMap)
 {
 	str_copy(m_aQueuedMap, pToMap, sizeof(m_aQueuedMap));
@@ -853,7 +861,7 @@ void IGameController::QueueMap(const char *pToMap)
 
 bool IGameController::IsWordSeparator(char c)
 {
-	return c == ';' || c == ' ' || c == ',' || c == '\t';
+	return c == ';' || c == ',' || c == '\t';
 }
 
 void IGameController::GetWordFromList(char *pNextWord, const char *pList, int ListIndex)
@@ -996,7 +1004,7 @@ void IGameController::CycleMap()
 
 	char aBufMsg[256];
 	str_format(aBufMsg, sizeof(aBufMsg), "rotating map to %s", aBuf);
-	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
+	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBufMsg);
 	ChangeMap(aBuf);
 }
 

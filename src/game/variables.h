@@ -206,6 +206,7 @@ MACRO_CONFIG_INT(DbgTuning, dbg_tuning, 0, 0, 1, CFGFLAG_CLIENT, "")
 MACRO_CONFIG_INT(SvSelfKill, sv_self_kill, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "Whether players can kill him/her self")
 MACRO_CONFIG_INT(SvSpectable, sv_spectable, 0, 0, 1, CFGFLAG_SERVER | CFGFLAG_GAME, "Whether players can specate in game or not")
 
+MACRO_CONFIG_INT(SvTimeLimit, sv_time_limit, 0, 0, 1000, CFGFLAG_SERVER, "Time limit in minutes (0 disables)")
 MACRO_CONFIG_STR(SvMapRotation, sv_map_rotation, 768, "", CFGFLAG_SERVER, "Maps to rotate between")
 MACRO_CONFIG_INT(SvMapRotationRandom, sv_map_rotation_random, 0, 0, 1, CFGFLAG_SERVER, "When enabled, next map in rotation will be chosen randomly")
-MACRO_CONFIG_INT(SvRoundsPerMap, sv_rounds_per_map, 1, 6, 100, CFGFLAG_SERVER, "Number of rounds on each map before rotating")
+MACRO_CONFIG_INT(SvRoundsPerMap, sv_rounds_per_map, 1, 1, 999, CFGFLAG_SERVER, "Number of rounds on each map before rotating")

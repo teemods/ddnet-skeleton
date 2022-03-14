@@ -1534,6 +1534,13 @@ void CGameContext::ConProtectedKill(IConsole::IResult *pResult, void *pUserData)
 	if(!pChr)
 		return;
 
+	// DDNet-Skeleton
+	if(!g_Config.m_SvSelfKill)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientID, "You cannot kill your self.");
+		return;
+	}
+
 	int CurrTime = (pSelf->Server()->Tick() - pChr->m_StartTime) / pSelf->Server()->TickSpeed();
 	if(g_Config.m_SvKillProtection != 0 && CurrTime >= (60 * g_Config.m_SvKillProtection) && pChr->m_DDRaceState == DDRACE_STARTED)
 	{

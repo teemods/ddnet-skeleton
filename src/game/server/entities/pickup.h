@@ -26,10 +26,6 @@ private:
 
 	void Move();
 	vec2 m_Core;
-
-	// DDNet-Skeleton
-	virtual int GetPickUpRespawnTime(int Type);
-	virtual int GetPickUpRespawnDelay(int Type);
 };
 
 #endif

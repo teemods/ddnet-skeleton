@@ -2407,6 +2407,13 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 				return;
 			}
 
+			// DDNet-Skeleton
+			if(!g_Config.m_SvSelfKill)
+			{
+				SendChatTarget(ClientID, "You cannot kill your self.");
+				return;
+			}
+
 			pPlayer->m_LastKill = Server()->Tick();
 			pPlayer->KillCharacter(WEAPON_SELF);
 			pPlayer->Respawn();
