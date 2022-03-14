@@ -2,7 +2,7 @@
 
 # DDNet Skeleton
 
-This repository aims to be the skeleton for creating modifications on top of the latest DDNet version. It currently modify the DDNet code so it can support removed vanilla features and comment out the code about specific race functionalities.
+This repository aims to be the skeleton for creating modifications on top of the latest DDNet version. It currently modify the DDNet code so it can support removed vanilla features and comment out the code about specific DDRace/Race functionalities.
 
 ## Official Documentation
 
@@ -10,4 +10,4 @@ Documentation for DDNet-Skeleton can be found on the [TeeFrame website](https://
 
 ## License
 
-DDNet-Skeleton is an open-sourced software licensed under the licenses at [licenses.txt](licenses.txt).
+DDNet-Skeleton is an open-sourced software licensed under the license at [license.txt](license.txt).
