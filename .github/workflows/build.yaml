@@ -91,11 +91,11 @@ jobs:
         ${{ matrix.cmake-path }}cmake --version
         ${{ matrix.cmake-path }}cmake ${{ matrix.cmake-args }} -DCMAKE_BUILD_TYPE=Debug -Werror=dev -DDOWNLOAD_GTEST=ON -DDEV=ON -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG=. ..
         ${{ matrix.cmake-path }}cmake --build . --config Debug --target everything ${{ matrix.build-args }}
-    - name: Test debug
-      env: ${{ matrix.env }}
-      run: |
-        cd debug
-        ${{ matrix.cmake-path }}cmake --build . --config Debug --target run_tests ${{ matrix.build-args }}
+    # - name: Test debug
+    #   env: ${{ matrix.env }}
+    #   run: |
+    #     cd debug
+    #     ${{ matrix.cmake-path }}cmake --build . --config Debug --target run_tests ${{ matrix.build-args }}
     - name: Run debug server
       env: ${{ matrix.env }}
       run: |
@@ -109,11 +109,11 @@ jobs:
         cd release
         ${{ matrix.cmake-path }}cmake ${{ matrix.cmake-args }} -DCMAKE_BUILD_TYPE=Release -Werror=dev -DDOWNLOAD_GTEST=ON -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=. ..
         ${{ matrix.cmake-path }}cmake --build . --config Release --target everything ${{ matrix.build-args }}
-    - name: Test release
-      env: ${{ matrix.env }}
-      run: |
-        cd release
-        ${{ matrix.cmake-path }}cmake --build . --config Release --target run_tests ${{ matrix.build-args }}
+    # - name: Test release
+    #   env: ${{ matrix.env }}
+    #   run: |
+    #     cd release
+    #     ${{ matrix.cmake-path }}cmake --build . --config Release --target run_tests ${{ matrix.build-args }}
     - name: Run release server
       env: ${{ matrix.env }}
       run: |
@@ -142,12 +142,12 @@ jobs:
         cd fancy
         ${{ matrix.cmake-path }}cmake ${{ matrix.cmake-args }} -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDOWNLOAD_GTEST=ON -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=. -DANTIBOT=ON -DTEST_MYSQL=ON -DWEBSOCKETS=ON ..
         ${{ matrix.cmake-path }}cmake --build . --config RelWithDebInfo --target everything ${{ matrix.build-args }}
-    - name: Test fancy
-      if: matrix.fancy
-      env: ${{ matrix.env }}
-      run: |
-        cd fancy
-        ${{ matrix.cmake-path }}cmake --build . --config RelWithDebInfo --target run_tests ${{ matrix.build-args }}
+    # - name: Test fancy
+    #   if: matrix.fancy
+    #   env: ${{ matrix.env }}
+    #   run: |
+    #     cd fancy
+    #     ${{ matrix.cmake-path }}cmake --build . --config RelWithDebInfo --target run_tests ${{ matrix.build-args }}
     - name: Run fancy server
       if: matrix.fancy
       env: ${{ matrix.env }}

@@ -304,25 +304,25 @@ bool CMysqlConnection::ConnectImpl()
 
 	if(m_Setup)
 	{
-		char aCreateRace[1024];
-		char aCreateTeamrace[1024];
-		char aCreateMaps[1024];
-		char aCreateSaves[1024];
-		char aCreatePoints[1024];
-		FormatCreateRace(aCreateRace, sizeof(aCreateRace));
-		FormatCreateTeamrace(aCreateTeamrace, sizeof(aCreateTeamrace), "VARBINARY(16)");
-		FormatCreateMaps(aCreateMaps, sizeof(aCreateMaps));
-		FormatCreateSaves(aCreateSaves, sizeof(aCreateSaves));
-		FormatCreatePoints(aCreatePoints, sizeof(aCreatePoints));
+		// char aCreateRace[1024];
+		// char aCreateTeamrace[1024];
+		// char aCreateMaps[1024];
+		// char aCreateSaves[1024];
+		// char aCreatePoints[1024];
+		// FormatCreateRace(aCreateRace, sizeof(aCreateRace));
+		// FormatCreateTeamrace(aCreateTeamrace, sizeof(aCreateTeamrace), "VARBINARY(16)");
+		// FormatCreateMaps(aCreateMaps, sizeof(aCreateMaps));
+		// FormatCreateSaves(aCreateSaves, sizeof(aCreateSaves));
+		// FormatCreatePoints(aCreatePoints, sizeof(aCreatePoints));
 
-		if(PrepareAndExecuteStatement(aCreateRace) ||
-			PrepareAndExecuteStatement(aCreateTeamrace) ||
-			PrepareAndExecuteStatement(aCreateMaps) ||
-			PrepareAndExecuteStatement(aCreateSaves) ||
-			PrepareAndExecuteStatement(aCreatePoints))
-		{
-			return true;
-		}
+		// if(PrepareAndExecuteStatement(aCreateRace) ||
+		// 	PrepareAndExecuteStatement(aCreateTeamrace) ||
+		// 	PrepareAndExecuteStatement(aCreateMaps) ||
+		// 	PrepareAndExecuteStatement(aCreateSaves) ||
+		// 	PrepareAndExecuteStatement(aCreatePoints))
+		// {
+		// 	return true;
+		// }
 		m_Setup = false;
 	}
 	dbg_msg("mysql", "connection established");

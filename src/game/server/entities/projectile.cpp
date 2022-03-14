@@ -24,7 +24,8 @@ CProjectile::CProjectile(
 	float Force,
 	int SoundImpact,
 	int Layer,
-	int Number) :
+	int Number,
+	int Damage) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_PROJECTILE)
 {
 	m_Type = Type;
@@ -33,7 +34,7 @@ CProjectile::CProjectile(
 	m_LifeSpan = Span;
 	m_Owner = Owner;
 	m_Force = Force;
-	//m_Damage = Damage;
+	m_Damage = Damage;
 	m_SoundImpact = SoundImpact;
 	m_StartTick = Server()->Tick();
 	m_Explosive = Explosive;

@@ -350,6 +350,13 @@ void CGameContext::ConKill(IConsole::IResult *pResult, void *pUserData)
 	if(!pPlayer || (pPlayer->m_LastKill && pPlayer->m_LastKill + pSelf->Server()->TickSpeed() * g_Config.m_SvKillDelay > pSelf->Server()->Tick()))
 		return;
 
+	// DDNet-Skeleton
+	if(!g_Config.m_SvSelfKill)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientID, "You cannot kill your self.");
+		return;
+	}
+
 	pPlayer->m_LastKill = pSelf->Server()->Tick();
 	pPlayer->KillCharacter(WEAPON_SELF);
 	//pPlayer->m_RespawnTick = pSelf->Server()->Tick() + pSelf->Server()->TickSpeed() * g_Config.m_SvSuicidePenalty;

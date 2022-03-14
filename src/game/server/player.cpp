@@ -816,6 +816,13 @@ void CPlayer::ProcessPause()
 
 int CPlayer::Pause(int State, bool Force)
 {
+	// DDNet-Skeleton
+	if(!g_Config.m_SvSpectable)
+	{
+		GameServer()->SendChatTarget(m_ClientID, "You cannot spectate in game.");
+		return 0;
+	}
+
 	if(State < PAUSE_NONE || State > PAUSE_SPEC) // Invalid pause state passed
 		return 0;
 
