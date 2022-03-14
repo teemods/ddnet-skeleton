@@ -2,7 +2,7 @@
 
 # DDNet-Skeleton
 
-This repository aims to be the skeleton for creating modifications on top of the latest DDNet version. It currently modify the DDNet code so it can support removed vanilla features and comment out the code about DDRace/Race exclusive functionalities.
+This repository aims to be the skeleton for creating modifications on top of the latest DDNet version. It currently modify the DDNet code so it can support removed vanilla features and comment out the code related to DDRace/Race exclusive functionalities.
 
 ## Official Documentation
 
