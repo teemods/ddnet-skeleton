@@ -1,9 +1,11 @@
-name: "Rebase from DDNet"
+name: "Fetch DDNet Upstream"
 
 on:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+    branches:
+      - upstream-ddnet
 
 jobs:
   rebase-ddnet:

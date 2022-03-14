@@ -1,4 +1,4 @@
-name: "Rebase from Skeleton"
+name: "Fetch Skeleton Upstream"
 
 on:
   schedule:

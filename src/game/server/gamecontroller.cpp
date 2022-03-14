@@ -551,7 +551,7 @@ bool IGameController::CanBeMovedOnBalance(int ClientID)
 void IGameController::Tick()
 {
 	// do warmup
-	if(m_Warmup)
+	if(!GameServer()->m_World.m_Paused && m_Warmup)
 	{
 		m_Warmup--;
 		if(!m_Warmup)
@@ -573,9 +573,16 @@ void IGameController::Tick()
 		}
 	}
 
-	DoWinCheck();
+	// game is Paused
+	if(GameServer()->m_World.m_Paused)
+		++m_RoundStartTick;
+
+	// do team-balancing
+	// SKELETON-TODO: DoTeamBalancingCheck()
 
 	DoActivityCheck();
+
+	DoWinCheck();
 }
 
 void IGameController::Snap(int SnappingClient)
@@ -595,8 +602,8 @@ void IGameController::Snap(int SnappingClient)
 	pGameInfoObj->m_RoundStartTick = m_RoundStartTick;
 	pGameInfoObj->m_WarmupTimer = m_Warmup;
 
-	// pGameInfoObj->m_ScoreLimit = 0;
-	// pGameInfoObj->m_TimeLimit = g_Config.m_SvTimeLimit;
+	pGameInfoObj->m_ScoreLimit = g_Config.m_SvScoreLimit;
+	pGameInfoObj->m_TimeLimit = g_Config.m_SvTimeLimit;
 
 	pGameInfoObj->m_RoundNum = (str_length(g_Config.m_SvMapRotation) && g_Config.m_SvRoundsPerMap) ? g_Config.m_SvRoundsPerMap : 0;
 	pGameInfoObj->m_RoundCurrent = m_RoundCount + 1;
@@ -764,6 +771,8 @@ int IGameController::GetAutoTeam(int NotThisID)
 	}
 
 	int Team = 0;
+	if(IsTeamplay())
+		Team = aNumplayers[TEAM_RED] > aNumplayers[TEAM_BLUE] ? TEAM_BLUE : TEAM_RED;
 
 	if(CanJoinTeam(Team, NotThisID))
 		return Team;
@@ -850,8 +859,53 @@ bool IGameController::IsTeamplay()
 
 void IGameController::DoWinCheck()
 {
+	if(m_GameOverTick != -1 || m_Warmup || !GameServer()->m_World.m_ResetRequested)
+		return;
+
+    // Time Limit check
 	if(g_Config.m_SvTimeLimit > 0 && (Server()->Tick() - m_RoundStartTick) >= g_Config.m_SvTimeLimit * Server()->TickSpeed() * 60)
 		EndRound();
+
+    // Score Limit check
+	if(IsTeamplay())
+	{
+		// check score win condition
+		if((g_Config.m_SvScoreLimit > 0 && (m_aTeamscore[TEAM_RED] >= g_Config.m_SvScoreLimit || m_aTeamscore[TEAM_BLUE] >= g_Config.m_SvScoreLimit)))
+		{
+			if(m_aTeamscore[TEAM_RED] != m_aTeamscore[TEAM_BLUE])
+				EndRound();
+			else
+				m_SuddenDeath = 1;
+		}
+	}
+	else
+	{
+		// gather some stats
+		int Topscore = 0;
+		int TopscoreCount = 0;
+		for(int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if(GameServer()->m_apPlayers[i])
+			{
+				if(GameServer()->m_apPlayers[i]->m_Score > Topscore)
+				{
+					Topscore = GameServer()->m_apPlayers[i]->m_Score;
+					TopscoreCount = 1;
+				}
+				else if(GameServer()->m_apPlayers[i]->m_Score == Topscore)
+					TopscoreCount++;
+			}
+		}
+
+		// check score win condition
+		if((g_Config.m_SvScoreLimit > 0 && Topscore >= g_Config.m_SvScoreLimit))
+		{
+			if(TopscoreCount == 1)
+				EndRound();
+			else
+				m_SuddenDeath = 1;
+		}
+	}
 }
 
 void IGameController::QueueMap(const char *pToMap)
@@ -960,7 +1014,7 @@ void IGameController::CycleMap()
 			int Min = 0;
 			int Max = pMapRotationInfo.m_MapCount - 1;
 
-			RandInt = rand() % (Max - Min + 1) + Min; // TODO: USE A BETTER RANDOM INT
+			RandInt = rand() % (Max - Min + 1) + Min; // SKELETON-TODO: USE A BETTER RANDOM INT
 			GetWordFromList(aBuf, g_Config.m_SvMapRotation, pMapRotationInfo.m_MapNameIndices[RandInt]);
 			// int MinPlayers = Server()->GetMinPlayersForMap(aBuf);
 			// if (RandInt != pMapRotationInfo.m_CurrentMapNumber && PlayerCount >= MinPlayers)
@@ -1005,6 +1059,7 @@ void IGameController::CycleMap()
 	char aBufMsg[256];
 	str_format(aBufMsg, sizeof(aBufMsg), "rotating map to %s", aBuf);
 	GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBufMsg);
+
 	ChangeMap(aBuf);
 }
 
