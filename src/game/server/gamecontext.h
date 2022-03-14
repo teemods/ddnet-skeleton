@@ -404,6 +404,12 @@ private:
 	static void ConFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnFreezeHammer(IConsole::IResult *pResult, void *pUserData);
 
+	// DDNet-Skeleton
+	bool MapExists(const char *pMapName);
+	static void ConSkipMap(IConsole::IResult *pResult, void *pUserData);
+	static void ConQueueMap(IConsole::IResult *pResult, void *pUserData);
+	static void ConAddMap(IConsole::IResult *pResult, void *pUserData);
+
 	enum
 	{
 		MAX_MUTES = 32,

@@ -69,7 +69,7 @@ public:
 	bool IncreaseHealth(int Amount);
 	bool IncreaseArmor(int Amount);
 
-	void GiveWeapon(int Weapon, bool Remove = false);
+	void GiveWeapon(int Weapon, bool Remove = false, int Ammo = -1);
 	void GiveNinja();
 	void RemoveNinja();
 	void SetEndlessHook(bool Enable);
@@ -245,6 +245,10 @@ public:
 
 	int m_SpawnTick;
 	int m_WeaponChangeTick;
+
+	// DDNet-Skeleton
+	int m_MaxHealth;
+	int m_MaxArmor;
 
 	// Setters/Getters because i don't want to modify vanilla vars access modifiers
 	int GetLastWeapon() { return m_LastWeapon; }

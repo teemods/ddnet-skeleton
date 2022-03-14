@@ -115,12 +115,12 @@ CScore::CScore(CGameContext *pGameServer, CDbConnectionPool *pPool) :
 		return;
 	}
 
-	m_pPool->Execute(CScoreWorker::Init, std::move(Tmp), "load best time");
+	// m_pPool->Execute(CScoreWorker::Init, std::move(Tmp), "load best time");
 }
 
 void CScore::LoadPlayerData(int ClientID)
 {
-	ExecPlayerThread(CScoreWorker::LoadPlayerData, "load player data", ClientID, "", 0);
+	// ExecPlayerThread(CScoreWorker::LoadPlayerData, "load player data", ClientID, "", 0);
 }
 
 void CScore::MapVote(int ClientID, const char *MapName)

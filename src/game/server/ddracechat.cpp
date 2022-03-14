@@ -52,19 +52,21 @@ void CGameContext::ConInfo(IConsole::IResult *pResult, void *pUserData)
 {
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
-		"DDraceNetwork Mod. Version: " GAME_VERSION);
+		GAME_MOD_NAME ". Version: " GAME_MOD_VERSION);
 	if(GIT_SHORTREV_HASH)
 	{
 		char aBuf[64];
 		str_format(aBuf, sizeof(aBuf), "Git revision hash: %s", GIT_SHORTREV_HASH);
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info", aBuf);
 	}
-	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
-		"Official site: DDNet.tw");
+
+	// DDNet-Skeleton
+	// pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
+	// 	"Official site: DDNet.tw");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
 		"For more info: /cmdlist");
-	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
-		"Or visit DDNet.tw");
+	// pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "info",
+	// 	"Or visit DDNet.tw");
 }
 
 void CGameContext::ConList(IConsole::IResult *pResult, void *pUserData)
@@ -430,6 +432,11 @@ void CGameContext::ConTop(IConsole::IResult *pResult, void *pUserData)
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	if(!CheckClientID(pResult->m_ClientID))
 		return;
+
+	pSelf->Console()->Print(
+		IConsole::OUTPUT_LEVEL_STANDARD,
+		"rank",
+		"This mod currently do not support the top.");
 
 	if(g_Config.m_SvHideScore)
 	{
@@ -817,6 +824,12 @@ void CGameContext::ConRank(IConsole::IResult *pResult, void *pUserData)
 	CGameContext *pSelf = (CGameContext *)pUserData;
 	if(!CheckClientID(pResult->m_ClientID))
 		return;
+
+	// DDNet-Skeleton
+	pSelf->Console()->Print(
+		IConsole::OUTPUT_LEVEL_STANDARD,
+		"rank",
+		"This mod currently do not support ranks.");
 
 	if(pResult->NumArguments() > 0)
 	{
@@ -1520,6 +1533,13 @@ void CGameContext::ConProtectedKill(IConsole::IResult *pResult, void *pUserData)
 	CCharacter *pChr = pPlayer->GetCharacter();
 	if(!pChr)
 		return;
+
+	// DDNet-Skeleton
+	if(!g_Config.m_SvSelfKill)
+	{
+		pSelf->SendChatTarget(pResult->m_ClientID, "You cannot kill your self.");
+		return;
+	}
 
 	int CurrTime = (pSelf->Server()->Tick() - pChr->m_StartTime) / pSelf->Server()->TickSpeed();
 	if(g_Config.m_SvKillProtection != 0 && CurrTime >= (60 * g_Config.m_SvKillProtection) && pChr->m_DDRaceState == DDRACE_STARTED)

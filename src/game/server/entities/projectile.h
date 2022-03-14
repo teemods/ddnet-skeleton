@@ -20,7 +20,8 @@ public:
 		float Force,
 		int SoundImpact,
 		int Layer = 0,
-		int Number = 0);
+		int Number = 0,
+		int Damage = 0);
 
 	vec2 GetPos(float Time);
 	void FillInfo(CNetObj_Projectile *pProj);
@@ -36,7 +37,7 @@ private:
 	int m_LifeSpan;
 	int m_Owner;
 	int m_Type;
-	//int m_Damage;
+	int m_Damage;
 	int m_SoundImpact;
 	float m_Force;
 	int m_StartTick;

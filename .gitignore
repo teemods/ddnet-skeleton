@@ -121,3 +121,8 @@ tags
 *.user
 *.vcxproj
 *.zip
+
+vgcore.*
+build/maps
+build/autoexec.cfg
+build/autoexec_server.cfg

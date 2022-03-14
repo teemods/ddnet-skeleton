@@ -147,6 +147,29 @@ public:
 	// DDRace
 
 	float m_CurrentRecord;
+
+	// DDNet-Skeleton
+	int m_aTeamscore[2];
+
+	char m_aQueuedMap[MAX_MAP_LENGTH];
+	char m_aPreviousMap[MAX_MAP_LENGTH];
+
+	bool IsTeamplay();
+	void DoWinCheck();
+
+	struct CMapRotationInfo
+	{
+		static const int MAX_MAPS = 256;
+		int m_MapNameIndices[MAX_MAPS]; // saves Indices where mapNames start inside of g_Config.m_SvMaprotation
+		int m_MapCount = 0; // how many maps are in rotation
+		int m_CurrentMapNumber = -1; // at what place the current map is, from 0 to (m_MapCount-1)
+	};
+	void QueueMap(const char *pToMap);
+	bool IsWordSeparator(char c);
+	void GetWordFromList(char *pNextWord, const char *pList, int ListIndex);
+	void GetMapRotationInfo(CMapRotationInfo *pMapRotationInfo);
+	void CycleMap();
+	void SkipMap();
 };
 
 #endif
