@@ -866,7 +866,7 @@ bool IGameController::IsTeamplay()
 
 void IGameController::DoWinCheck()
 {
-	if(m_GameOverTick != -1 || m_Warmup || !GameServer()->m_World.m_ResetRequested)
+	if(m_GameOverTick != -1 || m_Warmup || GameServer()->m_World.m_ResetRequested)
 		return;
 
 	// Time Limit check
