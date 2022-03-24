@@ -40,7 +40,7 @@ constexpr inline T mix(const T a, const T b, TB amount)
 
 inline float random_float() { return rand() / (float)(RAND_MAX); }
 
-inline int random_int(int Min, int Max) { rand() % (Max - Min + 1) + Min; } // SKELETON-TODO: USE A BETTER RANDOM INT ALGORITHM
+inline int random_int(int Min, int Max) { return rand() % (Max - Min + 1) + Min; } // SKELETON-TODO: USE A BETTER RANDOM INT ALGORITHM
 
 // float to fixed
 constexpr inline int f2fx(float v) { return (int)(v * (float)(1 << 10)); }
