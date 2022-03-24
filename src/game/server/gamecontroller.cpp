@@ -616,7 +616,8 @@ void IGameController::Snap(int SnappingClient)
 	pGameInfoObj->m_RoundCurrent = m_RoundCount + 1;
 
 	// DDNet-Skeleton
-	if(IsTeamplay())
+	// The SixUp client can't receive this 0.6 message or it will not connect
+	if(!Server()->IsSixup(SnappingClient) && IsTeamplay())
 	{
 		CNetObj_GameData *pGameDataObj = (CNetObj_GameData *)Server()->SnapNewItem(NETOBJTYPE_GAMEDATA, 0, sizeof(CNetObj_GameData));
 		if(!pGameDataObj)
@@ -626,6 +627,7 @@ void IGameController::Snap(int SnappingClient)
 		pGameDataObj->m_FlagCarrierRed = -1;
 		pGameDataObj->m_FlagCarrierBlue = -1;
 	}
+	// DDNet-Skeleton Finish
 
 	CCharacter *pChr;
 	CPlayer *pPlayer = SnappingClient != SERVER_DEMO_CLIENT ? GameServer()->m_apPlayers[SnappingClient] : 0;
