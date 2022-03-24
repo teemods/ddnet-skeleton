@@ -716,12 +716,12 @@ void IGameController::Snap(int SnappingClient)
 		GameInfoMsg.m_ScoreLimit = g_Config.m_SvScoreLimit;
 		GameInfoMsg.m_TimeLimit = g_Config.m_SvTimeLimit;
 		GameInfoMsg.m_MatchNum = (str_length(g_Config.m_SvMapRotation) && g_Config.m_SvRoundsPerMap) ? g_Config.m_SvRoundsPerMap : 0;
-		GameInfoMsg.m_MatchCurrent =  m_RoundCount + 1;
+		GameInfoMsg.m_MatchCurrent = m_RoundCount + 1;
 
 		// protocol7::CNetMsg_Sv_GameInfo GameInfoMsgNoRace = GameInfoMsg;
 		// GameInfoMsgNoRace.m_GameFlags &= ~protocol7::GAMEFLAG_RACE;
 
-		Server()->SendPackMsg(&GameInfoMsg, MSGFLAG_VITAL|MSGFLAG_NORECORD, SnappingClient);
+		Server()->SendPackMsg(&GameInfoMsg, MSGFLAG_VITAL | MSGFLAG_NORECORD, SnappingClient);
 	}
 
 	if(GameServer()->Collision()->m_pSwitchers)
