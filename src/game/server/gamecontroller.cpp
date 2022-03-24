@@ -691,13 +691,13 @@ void IGameController::Snap(int SnappingClient)
 
 		pGameData->m_GameStateEndTick = 0;
 
-		protocol7::CNetObj_GameDataRace *pRaceData = static_cast<protocol7::CNetObj_GameDataRace *>(Server()->SnapNewItem(-protocol7::NETOBJTYPE_GAMEDATARACE, 0, sizeof(protocol7::CNetObj_GameDataRace)));
-		if(!pRaceData)
-			return;
+		// protocol7::CNetObj_GameDataRace *pRaceData = static_cast<protocol7::CNetObj_GameDataRace *>(Server()->SnapNewItem(-protocol7::NETOBJTYPE_GAMEDATARACE, 0, sizeof(protocol7::CNetObj_GameDataRace)));
+		// if(!pRaceData)
+		// 	return;
 
-		pRaceData->m_BestTime = round_to_int(m_CurrentRecord * 1000);
-		pRaceData->m_Precision = 0;
-		pRaceData->m_RaceFlags = protocol7::RACEFLAG_HIDE_KILLMSG | protocol7::RACEFLAG_KEEP_WANTED_WEAPON;
+		// pRaceData->m_BestTime = round_to_int(m_CurrentRecord * 1000);
+		// pRaceData->m_Precision = 0;
+		// pRaceData->m_RaceFlags = protocol7::RACEFLAG_HIDE_KILLMSG | protocol7::RACEFLAG_KEEP_WANTED_WEAPON;
 
 		// DDNet-Skeleton
 		if(IsTeamplay())
@@ -709,6 +709,19 @@ void IGameController::Snap(int SnappingClient)
 			pGameDataTeam->m_TeamscoreRed = m_aTeamscore[TEAM_RED];
 			pGameDataTeam->m_TeamscoreBlue = m_aTeamscore[TEAM_BLUE];
 		}
+
+		// This pack message can be executed every snap? It doesn't look like it can, but it works.
+		protocol7::CNetMsg_Sv_GameInfo GameInfoMsg;
+		GameInfoMsg.m_GameFlags = m_GameFlags;
+		GameInfoMsg.m_ScoreLimit = g_Config.m_SvScoreLimit;
+		GameInfoMsg.m_TimeLimit = g_Config.m_SvTimeLimit;
+		GameInfoMsg.m_MatchNum = (str_length(g_Config.m_SvMapRotation) && g_Config.m_SvRoundsPerMap) ? g_Config.m_SvRoundsPerMap : 0;
+		GameInfoMsg.m_MatchCurrent =  m_RoundCount + 1;
+
+		// protocol7::CNetMsg_Sv_GameInfo GameInfoMsgNoRace = GameInfoMsg;
+		// GameInfoMsgNoRace.m_GameFlags &= ~protocol7::GAMEFLAG_RACE;
+
+		Server()->SendPackMsg(&GameInfoMsg, MSGFLAG_VITAL|MSGFLAG_NORECORD, SnappingClient);
 	}
 
 	if(GameServer()->Collision()->m_pSwitchers)
