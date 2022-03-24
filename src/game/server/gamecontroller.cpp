@@ -1080,10 +1080,7 @@ void IGameController::CycleMap()
 		int RandInt;
 		for(; i < 32; i++)
 		{
-			int Min = 0;
-			int Max = pMapRotationInfo.m_MapCount - 1;
-
-			RandInt = rand() % (Max - Min + 1) + Min; // SKELETON-TODO: USE A BETTER RANDOM INT
+			RandInt = random_int(0, pMapRotationInfo.m_MapCount - 1); // SKELETON-TODO: USE A BETTER RANDOM INT
 			GetWordFromList(aBuf, g_Config.m_SvMapRotation, pMapRotationInfo.m_MapNameIndices[RandInt]);
 			// int MinPlayers = Server()->GetMinPlayersForMap(aBuf);
 			// if (RandInt != pMapRotationInfo.m_CurrentMapNumber && PlayerCount >= MinPlayers)
