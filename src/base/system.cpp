@@ -1,5 +1,6 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
+#include <array> // std::size
 #include <cctype>
 #include <cmath>
 #include <cstdarg>
@@ -97,7 +98,7 @@ IOHANDLE io_current_exe()
 #if defined(CONF_FAMILY_WINDOWS)
 	wchar_t wpath[IO_MAX_PATH_LENGTH];
 	char path[IO_MAX_PATH_LENGTH];
-	if(!GetModuleFileNameW(NULL, wpath, sizeof(wpath) / sizeof(wpath[0])))
+	if(!GetModuleFileNameW(NULL, wpath, std::size(wpath)))
 	{
 		return 0;
 	}
@@ -247,7 +248,7 @@ static void logger_win_debugger(const char *line, void *user)
 {
 	(void)user;
 	WCHAR wBuffer[512];
-	MultiByteToWideChar(CP_UTF8, 0, line, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, line, -1, wBuffer, std::size(wBuffer));
 	OutputDebugStringW(wBuffer);
 	OutputDebugStringW(L"\n");
 }
@@ -406,7 +407,7 @@ IOHANDLE io_open_impl(const char *filename, int flags)
 	dbg_assert(flags == (IOFLAG_READ | IOFLAG_SKIP_BOM) || flags == IOFLAG_READ || flags == IOFLAG_WRITE || flags == IOFLAG_APPEND, "flags must be read, read+skipbom, write or append");
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wBuffer[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, filename, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, filename, -1, wBuffer, std::size(wBuffer));
 	if((flags & IOFLAG_READ) != 0)
 		return (IOHANDLE)_wfsopen(wBuffer, L"rb", _SH_DENYNO);
 	if(flags == IOFLAG_WRITE)
@@ -1575,7 +1576,7 @@ static int priv_net_create_socket(int domain, int type, struct sockaddr *addr, i
 		char buf[128];
 		WCHAR wBuffer[128];
 		int error = WSAGetLastError();
-		if(FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, wBuffer, sizeof(wBuffer) / sizeof(WCHAR), 0) == 0)
+		if(FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, wBuffer, std::size(wBuffer), 0) == 0)
 			wBuffer[0] = 0;
 		WideCharToMultiByte(CP_UTF8, 0, wBuffer, -1, buf, sizeof(buf), NULL, NULL);
 		dbg_msg("net", "failed to create socket with domain %d and type %d (%d '%s')", domain, type, error, buf);
@@ -1614,7 +1615,7 @@ static int priv_net_create_socket(int domain, int type, struct sockaddr *addr, i
 		char buf[128];
 		WCHAR wBuffer[128];
 		int error = WSAGetLastError();
-		if(FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, wBuffer, sizeof(wBuffer) / sizeof(WCHAR), 0) == 0)
+		if(FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, wBuffer, std::size(wBuffer), 0) == 0)
 			wBuffer[0] = 0;
 		WideCharToMultiByte(CP_UTF8, 0, wBuffer, -1, buf, sizeof(buf), NULL, NULL);
 		dbg_msg("net", "failed to bind socket with domain %d and type %d (%d '%s')", domain, type, error, buf);
@@ -2213,7 +2214,7 @@ void fs_listdir(const char *dir, FS_LISTDIR_CALLBACK cb, int type, void *user)
 	int length;
 
 	str_format(buffer, sizeof(buffer), "%s/*", dir);
-	MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wBuffer, std::size(wBuffer));
 
 	handle = FindFirstFileW(wBuffer, &finddata);
 	if(handle == INVALID_HANDLE_VALUE)
@@ -2267,7 +2268,7 @@ void fs_listdir_fileinfo(const char *dir, FS_LISTDIR_CALLBACK_FILEINFO cb, int t
 	int length;
 
 	str_format(buffer, sizeof(buffer), "%s/*", dir);
-	MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, buffer, -1, wBuffer, std::size(wBuffer));
 
 	handle = FindFirstFileW(wBuffer, &finddata);
 	if(handle == INVALID_HANDLE_VALUE)
@@ -2345,14 +2346,23 @@ int fs_storage_path(const char *appname, char *path, int max)
 
 #if defined(CONF_PLATFORM_HAIKU)
 	str_format(path, max, "%s/config/settings/%s", home, appname);
-	return 0;
-#endif
-
-#if defined(CONF_PLATFORM_MACOS)
+#elif defined(CONF_PLATFORM_MACOS)
 	str_format(path, max, "%s/Library/Application Support/%s", home, appname);
 #else
-	str_format(path, max, "%s/.%s", home, appname);
-	for(int i = str_length(home) + 2; path[i]; i++)
+	if(str_comp(appname, "Teeworlds") == 0)
+	{
+		// fallback for old directory for Teeworlds compatibility
+		str_format(path, max, "%s/.%s", home, appname);
+	}
+	else
+	{
+		char *data_home = getenv("XDG_DATA_HOME");
+		if(data_home)
+			str_format(path, max, "%s/%s", data_home, appname);
+		else
+			str_format(path, max, "%s/.local/share/%s", home, appname);
+	}
+	for(int i = str_length(path) - str_length(appname); path[i]; i++)
 		path[i] = tolower((unsigned char)path[i]);
 #endif
 
@@ -2382,7 +2392,7 @@ int fs_makedir(const char *path)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wBuffer[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, path, -1, wBuffer, std::size(wBuffer));
 	if(_wmkdir(wBuffer) == 0)
 		return 0;
 	if(errno == EEXIST)
@@ -2406,7 +2416,7 @@ int fs_removedir(const char *path)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wPath[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath, sizeof(wPath) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath, std::size(wPath));
 	if(RemoveDirectoryW(wPath) != 0)
 		return 0;
 	return -1;
@@ -2421,7 +2431,7 @@ int fs_is_dir(const char *path)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wPath[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath, sizeof(wPath) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, path, -1, wPath, std::size(wPath));
 	DWORD attributes = GetFileAttributesW(wPath);
 	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
 #else
@@ -2438,7 +2448,7 @@ int fs_chdir(const char *path)
 	{
 #if defined(CONF_FAMILY_WINDOWS)
 		WCHAR wBuffer[IO_MAX_PATH_LENGTH];
-		MultiByteToWideChar(CP_UTF8, 0, path, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+		MultiByteToWideChar(CP_UTF8, 0, path, -1, wBuffer, std::size(wBuffer));
 		if(_wchdir(wBuffer))
 			return 1;
 		else
@@ -2490,7 +2500,7 @@ int fs_remove(const char *filename)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wFilename[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, filename, -1, wFilename, sizeof(wFilename) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, filename, -1, wFilename, std::size(wFilename));
 	return DeleteFileW(wFilename) == 0;
 #else
 	return unlink(filename) != 0;
@@ -2502,8 +2512,8 @@ int fs_rename(const char *oldname, const char *newname)
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wOldname[IO_MAX_PATH_LENGTH];
 	WCHAR wNewname[IO_MAX_PATH_LENGTH];
-	MultiByteToWideChar(CP_UTF8, 0, oldname, -1, wOldname, sizeof(wOldname) / sizeof(WCHAR));
-	MultiByteToWideChar(CP_UTF8, 0, newname, -1, wNewname, sizeof(wNewname) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, oldname, -1, wOldname, std::size(wOldname));
+	MultiByteToWideChar(CP_UTF8, 0, newname, -1, wNewname, std::size(wNewname));
 	if(MoveFileExW(wOldname, wNewname, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED) == 0)
 		return 1;
 #else
@@ -2520,7 +2530,7 @@ int fs_file_time(const char *name, time_t *created, time_t *modified)
 	HANDLE handle;
 	WCHAR wBuffer[IO_MAX_PATH_LENGTH];
 
-	MultiByteToWideChar(CP_UTF8, 0, name, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, name, -1, wBuffer, std::size(wBuffer));
 	handle = FindFirstFileW(wBuffer, &finddata);
 	if(handle == INVALID_HANDLE_VALUE)
 		return 1;
@@ -2912,12 +2922,45 @@ int str_comp_filenames(const char *a, const char *b)
 	return *a - *b;
 }
 
+const char *str_startswith_nocase(const char *str, const char *prefix)
+{
+	int prefixl = str_length(prefix);
+	if(str_comp_nocase_num(str, prefix, prefixl) == 0)
+	{
+		return str + prefixl;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
 const char *str_startswith(const char *str, const char *prefix)
 {
 	int prefixl = str_length(prefix);
 	if(str_comp_num(str, prefix, prefixl) == 0)
 	{
 		return str + prefixl;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+const char *str_endswith_nocase(const char *str, const char *suffix)
+{
+	int strl = str_length(str);
+	int suffixl = str_length(suffix);
+	const char *strsuffix;
+	if(strl < suffixl)
+	{
+		return 0;
+	}
+	strsuffix = str + strl - suffixl;
+	if(str_comp_nocase(strsuffix, suffix) == 0)
+	{
+		return strsuffix;
 	}
 	else
 	{
@@ -3220,7 +3263,7 @@ int str_time(int64_t centisecs, int format, char *buffer, int buffer_size)
 
 int str_time_float(float secs, int format, char *buffer, int buffer_size)
 {
-	return str_time(llroundf(secs * 100.0), format, buffer, buffer_size);
+	return str_time(llroundf(secs * 100), format, buffer, buffer_size);
 }
 
 void str_escape(char **dst, const char *src, const char *end)
@@ -3758,7 +3801,7 @@ PROCESS shell_execute(const char *file)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wBuffer[512];
-	MultiByteToWideChar(CP_UTF8, 0, file, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, file, -1, wBuffer, std::size(wBuffer));
 	SHELLEXECUTEINFOW info;
 	mem_zero(&info, sizeof(SHELLEXECUTEINFOW));
 	info.cbSize = sizeof(SHELLEXECUTEINFOW);
@@ -3802,7 +3845,7 @@ int open_link(const char *link)
 {
 #if defined(CONF_FAMILY_WINDOWS)
 	WCHAR wBuffer[512];
-	MultiByteToWideChar(CP_UTF8, 0, link, -1, wBuffer, sizeof(wBuffer) / sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, link, -1, wBuffer, std::size(wBuffer));
 	return (uintptr_t)ShellExecuteW(NULL, L"open", wBuffer, NULL, NULL, SW_SHOWDEFAULT) > 32;
 #elif defined(CONF_PLATFORM_LINUX)
 	const int pid = fork();
@@ -4154,12 +4197,12 @@ void init_exception_handler()
 	{
 		// Intentional
 #ifdef __MINGW32__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-function-type"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
 		auto exc_hndl_init = (void APIENTRY (*)(void *))GetProcAddress(exception_handling_module, "ExcHndlInit");
 #ifdef __MINGW32__
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 #endif
 		void *exception_handling_offset = (void *)GetModuleHandle(NULL);
 		exc_hndl_init(exception_handling_offset);
@@ -4176,12 +4219,12 @@ void set_exception_handler_log_file(const char *log_file_path)
 	{
 		// Intentional
 #ifdef __MINGW32__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-function-type"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
 #endif
 		auto exception_log_file_path_func = (BOOL APIENTRY(*)(const char *))(GetProcAddress(exception_handling_module, "ExcHndlSetLogFileNameA"));
 #ifdef __MINGW32__
-#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 #endif
 		exception_log_file_path_func(log_file_path);
 	}

@@ -280,8 +280,9 @@ void CEditor::EnvelopeEval(int TimeOffsetMillis, int Env, float *pChannels, void
 	}
 
 	CEnvelope *e = pThis->m_Map.m_lEnvelopes[Env];
-	float t = pThis->m_AnimateTime + (TimeOffsetMillis / 1000.0f);
+	float t = pThis->m_AnimateTime;
 	t *= pThis->m_AnimateSpeed;
+	t += (TimeOffsetMillis / 1000.0f);
 	e->Eval(t, pChannels);
 }
 
@@ -1797,7 +1798,7 @@ void CEditor::DoQuadPoint(CQuad *pQuad, int QuadIndex, int V)
 
 float CEditor::TriangleArea(vec2 A, vec2 B, vec2 C)
 {
-	return abs(((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) * 0.5);
+	return abs(((B.x - A.x) * (C.y - A.y) - (C.x - A.x) * (B.y - A.y)) * 0.5f);
 }
 
 bool CEditor::IsInTriangle(vec2 Point, vec2 A, vec2 B, vec2 C)
@@ -2175,7 +2176,7 @@ void CEditor::DoQuadEnvPoint(const CQuad *pQuad, int QIndex, int PIndex)
 	float wy = UI()->MouseWorldY();
 	CEnvelope *pEnvelope = m_Map.m_lEnvelopes[pQuad->m_PosEnv];
 	void *pID = &pEnvelope->m_lPoints[PIndex];
-	static int s_ActQIndex = -1;
+	static int s_CurQIndex = -1;
 
 	// get pivot
 	float CenterX = fx2f(pQuad->m_aPoints[4].x) + fx2f(pEnvelope->m_lPoints[PIndex].m_aValues[0]);
@@ -2186,13 +2187,13 @@ void CEditor::DoQuadEnvPoint(const CQuad *pQuad, int QIndex, int PIndex)
 	if(dx * dx + dy * dy < 50.0f && UI()->ActiveItem() == 0)
 	{
 		UI()->SetHotItem(pID);
-		s_ActQIndex = QIndex;
+		s_CurQIndex = QIndex;
 	}
 
 	bool IgnoreGrid;
 	IgnoreGrid = Input()->KeyIsPressed(KEY_LALT) || Input()->KeyIsPressed(KEY_RALT);
 
-	if(UI()->ActiveItem() == pID && s_ActQIndex == QIndex)
+	if(UI()->ActiveItem() == pID && s_CurQIndex == QIndex)
 	{
 		if(s_Operation == OP_MOVE)
 		{
@@ -2232,7 +2233,7 @@ void CEditor::DoQuadEnvPoint(const CQuad *pQuad, int QIndex, int PIndex)
 
 		Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
 	}
-	else if(UI()->HotItem() == pID && s_ActQIndex == QIndex)
+	else if(UI()->HotItem() == pID && s_CurQIndex == QIndex)
 	{
 		ms_pUiGotContext = pID;
 
@@ -2350,7 +2351,7 @@ void CEditor::DoMapEditor(CUIRect View)
 	if(m_ShowPicker)
 	{
 		CUIRect Screen = *UI()->Screen();
-		float Size = 32.0 * 16.0f;
+		float Size = 32.0f * 16.0f;
 		float w = Size * (Screen.w / View.w);
 		float h = Size * (Screen.h / View.h);
 		float x = -(View.x / Screen.w) * w;
@@ -2387,10 +2388,10 @@ void CEditor::DoMapEditor(CUIRect View)
 		}
 		else
 		{
-			CLayerQuads *t = (CLayerQuads *)GetSelectedLayerType(0, LAYERTYPE_QUADS);
-			if(t)
+			CLayerQuads *q = (CLayerQuads *)GetSelectedLayerType(0, LAYERTYPE_QUADS);
+			if(q)
 			{
-				m_QuadsetPicker.m_Image = t->m_Image;
+				m_QuadsetPicker.m_Image = q->m_Image;
 				m_QuadsetPicker.m_lQuads[0].m_aPoints[0].x = f2fx(View.x);
 				m_QuadsetPicker.m_lQuads[0].m_aPoints[0].y = f2fx(View.y);
 				m_QuadsetPicker.m_lQuads[0].m_aPoints[1].x = f2fx((View.x + View.w));
@@ -2525,7 +2526,7 @@ void CEditor::DoMapEditor(CUIRect View)
 					m_pTooltip = Explain(EXPLANATION_VANILLA, (int)wx / 32 + (int)wy / 32 * 16, Layer);
 			}
 			else if(m_Brush.IsEmpty())
-				m_pTooltip = "Use left mouse button to drag and create a brush. Hold shift to select multiple quads.";
+				m_pTooltip = "Use left mouse button to drag and create a brush. Hold shift to select multiple quads. Use ctrl+right mouse to select layer.";
 			else
 				m_pTooltip = "Use left mouse button to paint with the brush. Right button clears the brush.";
 
@@ -3092,16 +3093,16 @@ int CEditor::DoProperties(CUIRect *pToolBox, CProperty *pProps, int *pIDs, int *
 			NewColorHex |= UiDoValueSelector(((char *)&pIDs[i] - 1), &Shifter, "", (pProps[i].m_Value >> 8) & 0xFFFFFF, 0, 0xFFFFFF, 1, 1.0f, "Use left mouse button to drag and change the color value. Hold shift to be more precise. Rightclick to edit as text.", false, true) << 8;
 
 			// color picker
-			ColorRGBA Color = ColorRGBA(
+			ColorRGBA ColorPick = ColorRGBA(
 				((pProps[i].m_Value >> s_aShift[0]) & 0xff) / 255.0f,
 				((pProps[i].m_Value >> s_aShift[1]) & 0xff) / 255.0f,
 				((pProps[i].m_Value >> s_aShift[2]) & 0xff) / 255.0f,
 				1.0f);
 
 			static int s_ColorPicker, s_ColorPickerID;
-			if(DoButton_ColorPicker(&s_ColorPicker, &ColorBox, &Color))
+			if(DoButton_ColorPicker(&s_ColorPicker, &ColorBox, &ColorPick))
 			{
-				ms_PickerColor = color_cast<ColorHSVA>(Color);
+				ms_PickerColor = color_cast<ColorHSVA>(ColorPick);
 				UiInvokePopupMenu(&s_ColorPickerID, 0, UI()->MouseX(), UI()->MouseY(), 180, 150, PopupColorPicker);
 			}
 
@@ -3457,10 +3458,10 @@ void CEditor::RenderLayers(CUIRect ToolBox, CUIRect View)
 						if(m_lSelectedLayers.size() > 1)
 						{
 							bool AllTile = true;
-							for(int i = 0; AllTile && i < m_lSelectedLayers.size(); i++)
+							for(int j = 0; AllTile && j < m_lSelectedLayers.size(); j++)
 							{
-								if(m_Map.m_lGroups[m_SelectedGroup]->m_lLayers[m_lSelectedLayers[i]]->m_Type == LAYERTYPE_TILES)
-									s_LayerPopupContext.m_aLayers.add((CLayerTiles *)m_Map.m_lGroups[m_SelectedGroup]->m_lLayers[m_lSelectedLayers[i]]);
+								if(m_Map.m_lGroups[m_SelectedGroup]->m_lLayers[m_lSelectedLayers[j]]->m_Type == LAYERTYPE_TILES)
+									s_LayerPopupContext.m_aLayers.add((CLayerTiles *)m_Map.m_lGroups[m_SelectedGroup]->m_lLayers[m_lSelectedLayers[j]]);
 								else
 									AllTile = false;
 							}
@@ -3559,6 +3560,73 @@ void CEditor::RenderLayers(CUIRect ToolBox, CUIRect View)
 			m_SelectedGroup = m_Map.m_lGroups.size() - 1;
 		}
 	}
+
+	SelectLayerByTile(s_ScrollValue);
+}
+
+void CEditor::SelectLayerByTile(float &Scroll)
+{
+	// ctrl+rightclick a map index to select the layer that has a tile there
+	static bool s_CtrlClick = false;
+	static int s_Selected = 0;
+	int MatchedGroup = -1;
+	int MatchedLayer = -1;
+	int Matches = 0;
+	bool IsFound = false;
+	int TotalLayers = 0;
+	int SelectedLayer = 0;
+	if(UI()->MouseButton(1) && Input()->ModifierIsPressed())
+	{
+		if(s_CtrlClick)
+			return;
+		s_CtrlClick = true;
+		for(int g = 0; g < m_Map.m_lGroups.size(); g++)
+		{
+			for(int l = 0; l < m_Map.m_lGroups[g]->m_lLayers.size(); l++)
+			{
+				TotalLayers++;
+				if(IsFound)
+					continue;
+				if(m_Map.m_lGroups[g]->m_lLayers[l]->m_Type != LAYERTYPE_TILES)
+					continue;
+
+				CLayerTiles *pTiles = (CLayerTiles *)m_Map.m_lGroups[g]->m_lLayers[l];
+				int x = (int)UI()->MouseWorldX() / 32 + m_Map.m_lGroups[g]->m_OffsetX;
+				int y = (int)UI()->MouseWorldY() / 32 + m_Map.m_lGroups[g]->m_OffsetY;
+				if(x < 0 || x >= pTiles->m_Width)
+					continue;
+				if(y < 0 || y >= pTiles->m_Height)
+					continue;
+				CTile Tile = pTiles->GetTile(x, y);
+				if(Tile.m_Index)
+				{
+					if(MatchedGroup == -1)
+					{
+						MatchedGroup = g;
+						MatchedLayer = l;
+						SelectedLayer = TotalLayers;
+					}
+					if(++Matches > s_Selected)
+					{
+						s_Selected++;
+						MatchedGroup = g;
+						MatchedLayer = l;
+						IsFound = true;
+						SelectedLayer = TotalLayers;
+					}
+				}
+			}
+		}
+		if(MatchedGroup != -1 && MatchedLayer != -1)
+		{
+			if(!IsFound)
+				s_Selected = 1;
+			Scroll = (float)SelectedLayer / (float)TotalLayers;
+			SelectLayer(MatchedLayer, MatchedGroup);
+		}
+	}
+	else
+		s_CtrlClick = false;
 }
 
 void CEditor::ReplaceImage(const char *pFileName, int StorageType, void *pUser)
@@ -4449,10 +4517,10 @@ void CEditor::RenderFileDialog()
 			{
 				//scroll
 				float IndexY = View.y - m_FileDialogScrollValue * ScrollNum * 17.0f + NewIndex * 17.0f;
-				int Scroll = View.y > IndexY ? -1 : View.y + View.h < IndexY + 17.0f ? 1 : 0;
-				if(Scroll)
+				int ScrollPos = View.y > IndexY ? -1 : View.y + View.h < IndexY + 17.0f ? 1 : 0;
+				if(ScrollPos)
 				{
-					if(Scroll < 0)
+					if(ScrollPos < 0)
 						m_FileDialogScrollValue = ((float)(NewIndex) + 0.5f) / ScrollNum;
 					else
 						m_FileDialogScrollValue = ((float)(NewIndex - Num) + 2.5f) / ScrollNum;
@@ -5100,7 +5168,7 @@ void CEditor::RenderEnvelopeEditor(CUIRect View)
 				const char *paTypeName[] = {
 					"N", "L", "S", "F", "M"};
 				const char *pTypeName = "Invalid";
-				if(0 <= pEnvelope->m_lPoints[i].m_Curvetype && pEnvelope->m_lPoints[i].m_Curvetype < (int)(sizeof(paTypeName) / sizeof(const char *)))
+				if(0 <= pEnvelope->m_lPoints[i].m_Curvetype && pEnvelope->m_lPoints[i].m_Curvetype < (int)std::size(paTypeName))
 					pTypeName = paTypeName[pEnvelope->m_lPoints[i].m_Curvetype];
 				if(DoButton_Editor(pID, pTypeName, 0, &v, 0, "Switch curve type"))
 					pEnvelope->m_lPoints[i].m_Curvetype = (pEnvelope->m_lPoints[i].m_Curvetype + 1) % NUM_CURVETYPES;
@@ -5666,7 +5734,7 @@ void CEditor::RenderMenubar(CUIRect MenuBar)
 void CEditor::Render()
 {
 	// basic start
-	Graphics()->Clear(1.0f, 0.0f, 1.0f);
+	Graphics()->Clear(0.0f, 0.0f, 0.0f);
 	CUIRect View = *UI()->Screen();
 	UI()->MapScreen();
 
@@ -5744,27 +5812,27 @@ void CEditor::Render()
 				if(m_apSavedBrushes[Slot])
 				{
 					CLayerGroup *pPrev = m_apSavedBrushes[Slot];
-					for(int i = 0; i < pPrev->m_lLayers.size(); i++)
+					for(int j = 0; j < pPrev->m_lLayers.size(); j++)
 					{
-						if(pPrev->m_lLayers[i]->m_BrushRefCount == 1)
-							delete pPrev->m_lLayers[i];
+						if(pPrev->m_lLayers[j]->m_BrushRefCount == 1)
+							delete pPrev->m_lLayers[j];
 						else
-							pPrev->m_lLayers[i]->m_BrushRefCount--;
+							pPrev->m_lLayers[j]->m_BrushRefCount--;
 					}
 				}
 				delete m_apSavedBrushes[Slot];
 				m_apSavedBrushes[Slot] = new CLayerGroup(m_Brush);
 
-				for(int i = 0; i < m_apSavedBrushes[Slot]->m_lLayers.size(); i++)
-					m_apSavedBrushes[Slot]->m_lLayers[i]->m_BrushRefCount++;
+				for(int j = 0; j < m_apSavedBrushes[Slot]->m_lLayers.size(); j++)
+					m_apSavedBrushes[Slot]->m_lLayers[j]->m_BrushRefCount++;
 			}
 			else if(m_apSavedBrushes[Slot])
 			{
 				dbg_msg("editor", "loading brush from slot %d", Slot);
 
 				CLayerGroup *pNew = m_apSavedBrushes[Slot];
-				for(int i = 0; i < pNew->m_lLayers.size(); i++)
-					pNew->m_lLayers[i]->m_BrushRefCount++;
+				for(int j = 0; j < pNew->m_lLayers.size(); j++)
+					pNew->m_lLayers[j]->m_BrushRefCount++;
 
 				m_Brush = *pNew;
 			}
@@ -6031,7 +6099,10 @@ void CEditor::Reset(bool CreateDefault)
 
 	// create default layers
 	if(CreateDefault)
-		m_Map.CreateDefault(m_EntitiesTexture);
+	{
+		m_EditorWasUsedBefore = true;
+		m_Map.CreateDefault(GetEntitiesTexture());
+	}
 
 	SelectGameLayer();
 	m_lSelectedQuads.clear();
@@ -6141,7 +6212,7 @@ void CEditorMap::MakeGameLayer(CLayer *pLayer)
 {
 	m_pGameLayer = (CLayerGame *)pLayer;
 	m_pGameLayer->m_pEditor = m_pEditor;
-	m_pGameLayer->m_Texture = m_pEditor->m_EntitiesTexture;
+	m_pGameLayer->m_Texture = m_pEditor->GetEntitiesTexture();
 }
 
 void CEditorMap::MakeGameGroup(CLayerGroup *pGroup)
@@ -6207,6 +6278,60 @@ void CEditorMap::CreateDefault(IGraphics::CTextureHandle EntitiesTexture)
 	m_pTuneLayer = 0x0;
 }
 
+int CEditor::GetTextureUsageFlag()
+{
+	return Graphics()->HasTextureArrays() ? IGraphics::TEXLOAD_TO_2D_ARRAY_TEXTURE : IGraphics::TEXLOAD_TO_3D_TEXTURE;
+}
+
+IGraphics::CTextureHandle CEditor::GetFrontTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+
+	if(!m_FrontTexture.IsValid())
+		m_FrontTexture = Graphics()->LoadTexture("editor/front.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_FrontTexture;
+}
+
+IGraphics::CTextureHandle CEditor::GetTeleTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+	if(!m_TeleTexture.IsValid())
+		m_TeleTexture = Graphics()->LoadTexture("editor/tele.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_TeleTexture;
+}
+
+IGraphics::CTextureHandle CEditor::GetSpeedupTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+	if(!m_SpeedupTexture.IsValid())
+		m_SpeedupTexture = Graphics()->LoadTexture("editor/speedup.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_SpeedupTexture;
+}
+
+IGraphics::CTextureHandle CEditor::GetSwitchTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+	if(!m_SwitchTexture.IsValid())
+		m_SwitchTexture = Graphics()->LoadTexture("editor/switch.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_SwitchTexture;
+}
+
+IGraphics::CTextureHandle CEditor::GetTuneTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+	if(!m_TuneTexture.IsValid())
+		m_TuneTexture = Graphics()->LoadTexture("editor/tune.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_TuneTexture;
+}
+
+IGraphics::CTextureHandle CEditor::GetEntitiesTexture()
+{
+	int TextureLoadFlag = GetTextureUsageFlag();
+	if(!m_EntitiesTexture.IsValid())
+		m_EntitiesTexture = Graphics()->LoadTexture("editor/entities/DDNet.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
+	return m_EntitiesTexture;
+}
+
 void CEditor::Init()
 {
 	m_pInput = Kernel()->RequestInterface<IInput>();
@@ -6227,14 +6352,6 @@ void CEditor::Init()
 	m_CheckerTexture = Graphics()->LoadTexture("editor/checker.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, 0);
 	m_BackgroundTexture = Graphics()->LoadTexture("editor/background.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, 0);
 	m_CursorTexture = Graphics()->LoadTexture("editor/cursor.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, 0);
-	int TextureLoadFlag = Graphics()->HasTextureArrays() ? IGraphics::TEXLOAD_TO_2D_ARRAY_TEXTURE : IGraphics::TEXLOAD_TO_3D_TEXTURE;
-	m_EntitiesTexture = Graphics()->LoadTexture("editor/entities/DDNet.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
-
-	m_FrontTexture = Graphics()->LoadTexture("editor/front.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
-	m_TeleTexture = Graphics()->LoadTexture("editor/tele.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
-	m_SpeedupTexture = Graphics()->LoadTexture("editor/speedup.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
-	m_SwitchTexture = Graphics()->LoadTexture("editor/switch.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
-	m_TuneTexture = Graphics()->LoadTexture("editor/tune.png", IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, TextureLoadFlag);
 
 	m_TilesetPicker.m_pEditor = this;
 	m_TilesetPicker.MakePalette();
@@ -6246,7 +6363,7 @@ void CEditor::Init()
 
 	m_Brush.m_pMap = &m_Map;
 
-	Reset();
+	Reset(false);
 	m_Map.m_Modified = false;
 
 	ms_PickerColor = ColorHSVA(1.0f, 0.0f, 0.0f);
@@ -6273,6 +6390,12 @@ void CEditor::UpdateAndRender()
 {
 	static float s_MouseX = 0.0f;
 	static float s_MouseY = 0.0f;
+
+	if(!m_EditorWasUsedBefore)
+	{
+		m_EditorWasUsedBefore = true;
+		Reset();
+	}
 
 	if(m_Animate)
 		m_AnimateTime = (time_get() - m_AnimateStart) / (float)time_freq();
@@ -6369,33 +6492,33 @@ void CEditorMap::MakeTeleLayer(CLayer *pLayer)
 {
 	m_pTeleLayer = (CLayerTele *)pLayer;
 	m_pTeleLayer->m_pEditor = m_pEditor;
-	m_pTeleLayer->m_Texture = m_pEditor->m_TeleTexture;
+	m_pTeleLayer->m_Texture = m_pEditor->GetTeleTexture();
 }
 
 void CEditorMap::MakeSpeedupLayer(CLayer *pLayer)
 {
 	m_pSpeedupLayer = (CLayerSpeedup *)pLayer;
 	m_pSpeedupLayer->m_pEditor = m_pEditor;
-	m_pSpeedupLayer->m_Texture = m_pEditor->m_SpeedupTexture;
+	m_pSpeedupLayer->m_Texture = m_pEditor->GetSpeedupTexture();
 }
 
 void CEditorMap::MakeFrontLayer(CLayer *pLayer)
 {
 	m_pFrontLayer = (CLayerFront *)pLayer;
 	m_pFrontLayer->m_pEditor = m_pEditor;
-	m_pFrontLayer->m_Texture = m_pEditor->m_FrontTexture;
+	m_pFrontLayer->m_Texture = m_pEditor->GetFrontTexture();
 }
 
 void CEditorMap::MakeSwitchLayer(CLayer *pLayer)
 {
 	m_pSwitchLayer = (CLayerSwitch *)pLayer;
 	m_pSwitchLayer->m_pEditor = m_pEditor;
-	m_pSwitchLayer->m_Texture = m_pEditor->m_SwitchTexture;
+	m_pSwitchLayer->m_Texture = m_pEditor->GetSwitchTexture();
 }
 
 void CEditorMap::MakeTuneLayer(CLayer *pLayer)
 {
 	m_pTuneLayer = (CLayerTune *)pLayer;
 	m_pTuneLayer->m_pEditor = m_pEditor;
-	m_pTuneLayer->m_Texture = m_pEditor->m_TuneTexture;
+	m_pTuneLayer->m_Texture = m_pEditor->GetTuneTexture();
 }

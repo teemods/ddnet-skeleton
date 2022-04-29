@@ -305,6 +305,18 @@ void CNamePlates::OnRender()
 	if(!g_Config.m_ClNameplates && ShowDirection == 0)
 		return;
 
+	// get screen edges to avoid rendering offscreen
+	float ScreenX0, ScreenY0, ScreenX1, ScreenY1;
+	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
+	// expand the edges to prevent popping in/out onscreen
+	//
+	// it is assumed that the nameplate and all its components fit into a 800x800 box placed directly above the tee
+	// this may need to be changed or calculated differently in the future
+	ScreenX0 -= 400;
+	ScreenX1 += 400;
+	//ScreenY0 -= 0;
+	ScreenY1 += 800;
+
 	for(int i = 0; i < MAX_CLIENTS; i++)
 	{
 		const CNetObj_PlayerInfo *pInfo = m_pClient->m_Snap.m_paPlayerInfos[i];
@@ -313,14 +325,24 @@ void CNamePlates::OnRender()
 			continue;
 		}
 
+		// don't render offscreen
+		vec2 *pRenderPos = &m_pClient->m_aClients[i].m_RenderPos;
+		if(m_pClient->m_aClients[i].m_SpecCharPresent)
+		{
+			pRenderPos = &m_pClient->m_aClients[i].m_SpecChar;
+		}
+		if(pRenderPos->x < ScreenX0 || pRenderPos->x > ScreenX1 || pRenderPos->y < ScreenY0 || pRenderPos->y > ScreenY1)
+		{
+			continue;
+		}
+
 		if(m_pClient->m_aClients[i].m_SpecCharPresent)
 		{
 			RenderNameplatePos(m_pClient->m_aClients[i].m_SpecChar, pInfo, 0.4f, true);
 		}
-
-		// only render active characters
-		if(m_pClient->m_Snap.m_aCharacters[i].m_Active)
+		else if(m_pClient->m_Snap.m_aCharacters[i].m_Active)
 		{
+			// only render nameplates for active characters
 			RenderNameplate(
 				&m_pClient->m_Snap.m_aCharacters[i].m_Prev,
 				&m_pClient->m_Snap.m_aCharacters[i].m_Cur,

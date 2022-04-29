@@ -277,7 +277,6 @@ void CGameTeams::Tick()
 				}
 				str_append(aPlayerNames, Server()->ClientName(j), sizeof(aPlayerNames));
 				NumPlayersNotStarted += 1;
-				break;
 			}
 		}
 		if(!aPlayerNames[0])
@@ -484,7 +483,7 @@ int64_t CGameTeams::TeamMask(int Team, int ExceptID, int Asker)
 	int64_t Mask = 0;
 
 	if(Team == TEAM_SUPER)
-		return 0xffffffffffffffff;
+		return 0xffffffffffffffff & ~(1 << ExceptID);
 
 	for(int i = 0; i < MAX_CLIENTS; ++i)
 	{
@@ -779,8 +778,8 @@ void CGameTeams::OnFinish(CPlayer *Player, float Time, const char *pTimestamp)
 
 		if(pData->m_BestTime)
 		{
-			float Diff = (Time - pData->m_BestTime) * 100;
-			MsgLegacy.m_Check = Msg.m_Check = (int)Diff;
+			float Diff100 = (Time - pData->m_BestTime) * 100;
+			MsgLegacy.m_Check = Msg.m_Check = (int)Diff100;
 		}
 
 		Server()->SendPackMsg(&Msg, MSGFLAG_VITAL, ClientID);

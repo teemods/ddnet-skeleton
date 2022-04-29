@@ -57,6 +57,7 @@ CUI::CUI()
 	m_pActiveItem = 0;
 	m_pLastActiveItem = 0;
 	m_pBecomingHotItem = 0;
+	m_pActiveTooltipItem = 0;
 
 	m_MouseX = 0;
 	m_MouseY = 0;
@@ -384,9 +385,9 @@ void CUIRect::HMargin(float Cut, CUIRect *pOtherRect) const
 	pOtherRect->h = r.h - 2 * Cut;
 }
 
-bool CUIRect::Inside(float x, float y) const
+bool CUIRect::Inside(float x_, float y_) const
 {
-	return x >= this->x && x < this->x + this->w && y >= this->y && y < this->y + this->h;
+	return x_ >= this->x && x_ < this->x + this->w && y_ >= this->y && y_ < this->y + this->h;
 }
 
 int CUI::DoButtonLogic(const void *pID, const char *pText, int Checked, const CUIRect *pRect)

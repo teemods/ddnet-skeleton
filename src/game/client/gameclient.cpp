@@ -137,6 +137,7 @@ void CGameClient::OnConsoleInit()
 	m_All.Add(&m_Statboard);
 	m_All.Add(&m_Motd);
 	m_All.Add(&m_Menus);
+	m_All.Add(&m_Tooltips);
 	m_All.Add(&CMenus::m_Binder);
 	m_All.Add(&m_GameConsole);
 
@@ -245,9 +246,17 @@ void CGameClient::OnInit()
 
 	Client()->LoadFont();
 
+	// update and swap after font loading, they are quite huge
+	Client()->UpdateAndSwap();
+
 	// init all components
 	for(int i = m_All.m_Num - 1; i >= 0; --i)
+	{
 		m_All.m_paComponents[i]->OnInit();
+		// try to render a frame after each component, also flushes GPU uploads
+		if(m_Menus.IsInit())
+			m_Menus.RenderLoading(false);
+	}
 
 	char aBuf[256];
 
@@ -266,7 +275,7 @@ void CGameClient::OnInit()
 			LoadParticlesSkin(g_Config.m_ClAssetParticles);
 		else
 			g_pData->m_aImages[i].m_Id = Graphics()->LoadTexture(g_pData->m_aImages[i].m_pFilename, IStorage::TYPE_ALL, CImageInfo::FORMAT_AUTO, 0);
-		m_Menus.RenderLoading();
+		m_Menus.RenderLoading(false);
 	}
 
 	for(int i = 0; i < m_All.m_Num; i++)
@@ -329,7 +338,7 @@ void CGameClient::OnInit()
 	pChecksum->m_NumComponents = m_All.m_Num;
 	for(int i = 0; i < m_All.m_Num; i++)
 	{
-		if(i >= (int)(sizeof(pChecksum->m_aComponentsChecksum) / sizeof(pChecksum->m_aComponentsChecksum[0])))
+		if(i >= (int)(std::size(pChecksum->m_aComponentsChecksum)))
 		{
 			break;
 		}
@@ -406,7 +415,7 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 	}
 	else
 	{
-		if((m_DummyFire / 12.5f) - (int)(m_DummyFire / 12.5f) > 0.01f)
+		if(m_DummyFire % 25 != 0)
 		{
 			m_DummyFire++;
 			return 0;
@@ -420,9 +429,9 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 			m_DummyInput.m_WantedWeapon = WEAPON_HAMMER + 1;
 		}
 
-		vec2 Main = m_LocalCharacterPos;
-		vec2 Dummy = m_aClients[m_LocalIDs[!g_Config.m_ClDummy]].m_Predicted.m_Pos;
-		vec2 Dir = Main - Dummy;
+		vec2 MainPos = m_LocalCharacterPos;
+		vec2 DummyPos = m_aClients[m_LocalIDs[!g_Config.m_ClDummy]].m_Predicted.m_Pos;
+		vec2 Dir = MainPos - DummyPos;
 		m_HammerInput.m_TargetX = (int)(Dir.x);
 		m_HammerInput.m_TargetY = (int)(Dir.y);
 
@@ -1001,7 +1010,7 @@ static CGameInfo GetGameInfo(const CNetObj_GameInfoEx *pInfoEx, int InfoExSize, 
 	Info.m_UnlimitedAmmo = Race;
 	Info.m_DDRaceRecordMessage = DDRace && !DDNet;
 	Info.m_RaceRecordMessage = DDNet || (Race && !DDRace);
-	Info.m_RaceSounds = DDRace || FNG;
+	Info.m_RaceSounds = DDRace || FNG || BlockWorlds;
 	Info.m_AllowEyeWheel = DDRace || BlockWorlds || City || Plus;
 	Info.m_AllowHookColl = DDRace;
 	Info.m_AllowZoom = Race || BlockWorlds || City;
@@ -1226,7 +1235,6 @@ void CGameClient::OnNewSnapshot()
 						if(pInfo->m_Team == TEAM_SPECTATORS)
 						{
 							m_Snap.m_SpecInfo.m_Active = true;
-							m_Snap.m_SpecInfo.m_SpectatorID = SPEC_FREEVIEW;
 						}
 					}
 
@@ -1255,7 +1263,6 @@ void CGameClient::OnNewSnapshot()
 					if(Item.m_ID == m_Snap.m_LocalClientID && (m_aClients[Item.m_ID].m_Paused || m_aClients[Item.m_ID].m_Spec))
 					{
 						m_Snap.m_SpecInfo.m_Active = true;
-						m_Snap.m_SpecInfo.m_SpectatorID = SPEC_FREEVIEW;
 					}
 				}
 			}
@@ -1428,31 +1435,31 @@ void CGameClient::OnNewSnapshot()
 					Collision()->m_NumSwitchers = NumSwitchers;
 				}
 
-				for(int i = 0; i < NumSwitchers + 1; i++)
+				for(int j = 0; j < NumSwitchers + 1; j++)
 				{
-					if(i < 32)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status1 & (1 << i);
-					else if(i < 64)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status2 & (1 << (i - 32));
-					else if(i < 96)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status3 & (1 << (i - 64));
-					else if(i < 128)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status4 & (1 << (i - 96));
-					else if(i < 160)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status5 & (1 << (i - 128));
-					else if(i < 192)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status6 & (1 << (i - 160));
-					else if(i < 224)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status7 & (1 << (i - 192));
-					else if(i < 256)
-						Collision()->m_pSwitchers[i].m_Status[Team] = pSwitchStateData->m_Status8 & (1 << (i - 224));
+					if(j < 32)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status1 & (1 << j);
+					else if(j < 64)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status2 & (1 << (j - 32));
+					else if(j < 96)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status3 & (1 << (j - 64));
+					else if(j < 128)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status4 & (1 << (j - 96));
+					else if(j < 160)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status5 & (1 << (j - 128));
+					else if(j < 192)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status6 & (1 << (j - 160));
+					else if(j < 224)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status7 & (1 << (j - 192));
+					else if(j < 256)
+						Collision()->m_pSwitchers[j].m_Status[Team] = pSwitchStateData->m_Status8 & (1 << (j - 224));
 
 					// update
-					if(Collision()->m_pSwitchers[i].m_Status[Team])
-						Collision()->m_pSwitchers[i].m_Type[Team] = TILE_SWITCHOPEN;
+					if(Collision()->m_pSwitchers[j].m_Status[Team])
+						Collision()->m_pSwitchers[j].m_Type[Team] = TILE_SWITCHOPEN;
 					else
-						Collision()->m_pSwitchers[i].m_Type[Team] = TILE_SWITCHCLOSE;
-					Collision()->m_pSwitchers[i].m_EndTick[Team] = 0;
+						Collision()->m_pSwitchers[j].m_Type[Team] = TILE_SWITCHCLOSE;
+					Collision()->m_pSwitchers[j].m_EndTick[Team] = 0;
 				}
 
 				if(!GotSwitchStateTeam)
@@ -2112,8 +2119,8 @@ void CGameClient::SendKill(int ClientID)
 
 	if(g_Config.m_ClDummyCopyMoves)
 	{
-		CMsgPacker Msg(NETMSGTYPE_CL_KILL, false);
-		Client()->SendMsg(!g_Config.m_ClDummy, &Msg, MSGFLAG_VITAL);
+		CMsgPacker MsgP(NETMSGTYPE_CL_KILL, false);
+		Client()->SendMsg(!g_Config.m_ClDummy, &MsgP, MSGFLAG_VITAL);
 	}
 }
 
@@ -2222,8 +2229,8 @@ void CGameClient::UpdatePrediction()
 	m_GameWorld.m_WorldConfig.m_IsVanilla = m_GameInfo.m_PredictVanilla;
 	m_GameWorld.m_WorldConfig.m_IsDDRace = m_GameInfo.m_PredictDDRace;
 	m_GameWorld.m_WorldConfig.m_IsFNG = m_GameInfo.m_PredictFNG;
-	m_GameWorld.m_WorldConfig.m_PredictDDRace = g_Config.m_ClPredictDDRace;
-	m_GameWorld.m_WorldConfig.m_PredictTiles = g_Config.m_ClPredictDDRace && m_GameInfo.m_PredictDDRaceTiles;
+	m_GameWorld.m_WorldConfig.m_PredictDDRace = m_GameInfo.m_PredictDDRace;
+	m_GameWorld.m_WorldConfig.m_PredictTiles = m_GameInfo.m_PredictDDRace && m_GameInfo.m_PredictDDRaceTiles;
 	m_GameWorld.m_WorldConfig.m_UseTuneZones = m_GameInfo.m_PredictDDRaceTiles;
 	m_GameWorld.m_WorldConfig.m_PredictFreeze = g_Config.m_ClPredictFreeze;
 	m_GameWorld.m_WorldConfig.m_PredictWeapons = AntiPingWeapons();
@@ -2709,6 +2716,10 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 
 		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupHealth);
 		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupArmor);
+		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupArmorShotgun);
+		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupArmorGrenade);
+		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupArmorLaser);
+		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupArmorNinja);
 		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupGrenade);
 		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupShotgun);
 		Graphics()->UnloadTexture(&m_GameSkin.m_SpritePickupLaser);
@@ -2842,6 +2853,10 @@ void CGameClient::LoadGameSkin(const char *pPath, bool AsDir)
 		// pickups
 		m_GameSkin.m_SpritePickupHealth = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_HEALTH]);
 		m_GameSkin.m_SpritePickupArmor = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR]);
+		m_GameSkin.m_SpritePickupArmorShotgun = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR_SHOTGUN]);
+		m_GameSkin.m_SpritePickupArmorGrenade = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR_GRENADE]);
+		m_GameSkin.m_SpritePickupArmorLaser = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR_LASER]);
+		m_GameSkin.m_SpritePickupArmorNinja = Graphics()->LoadSpriteTexture(ImgInfo, &g_pData->m_aSprites[SPRITE_PICKUP_ARMOR_NINJA]);
 		m_GameSkin.m_SpritePickupGrenade = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_GRENADE]);
 		m_GameSkin.m_SpritePickupShotgun = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_SHOTGUN]);
 		m_GameSkin.m_SpritePickupLaser = Graphics()->LoadSpriteTexture(ImgInfo, &client_data7::g_pData->m_aSprites[client_data7::SPRITE_PICKUP_LASER]);

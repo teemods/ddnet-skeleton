@@ -41,7 +41,9 @@ void CGameContext::ConCredits(IConsole::IResult *pResult, void *pUserData)
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
 		"Fireball, Banana090, axblk, yangfl, Kaffeine,");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
-		"Zodiac & others.");
+		"Zodiac, c0d3d3v, GiuCcc, Ravie, Robyt3, simpygirl,");
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
+		"sjrc6 & others.");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
 		"Based on DDRace by the DDRace developers,");
 	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "credits",
@@ -409,7 +411,7 @@ void CGameContext::ConTeamTop5(IConsole::IResult *pResult, void *pUserData)
 			const char *pRequestedName = (str_comp(pResult->GetString(0), "me") == 0) ?
 							     pSelf->Server()->ClientName(pResult->m_ClientID) :
 							     pResult->GetString(0);
-			pSelf->Score()->ShowTeamTop5(pResult->m_ClientID, pRequestedName, 0);
+			pSelf->Score()->ShowPlayerTeamTop5(pResult->m_ClientID, pRequestedName, 0);
 		}
 	}
 	else if(pResult->NumArguments() == 2 && pResult->GetInteger(1) != 0)
@@ -417,7 +419,7 @@ void CGameContext::ConTeamTop5(IConsole::IResult *pResult, void *pUserData)
 		const char *pRequestedName = (str_comp(pResult->GetString(0), "me") == 0) ?
 						     pSelf->Server()->ClientName(pResult->m_ClientID) :
 						     pResult->GetString(0);
-		pSelf->Score()->ShowTeamTop5(pResult->m_ClientID, pRequestedName, pResult->GetInteger(1));
+		pSelf->Score()->ShowPlayerTeamTop5(pResult->m_ClientID, pRequestedName, pResult->GetInteger(1));
 	}
 	else
 	{
@@ -672,7 +674,7 @@ void CGameContext::ConPractice(IConsole::IResult *pResult, void *pUserData)
 
 	if(NumCurrentVotes >= NumRequiredVotes)
 	{
-		Teams.EnablePractice(Team);
+		Teams.SetPractice(Team, true);
 		pSelf->SendChatTeam(Team, "Practice mode enabled for your team, happy practicing!");
 	}
 }
@@ -702,7 +704,7 @@ void CGameContext::ConSwap(IConsole::IResult *pResult, void *pUserData)
 
 	int Team = Teams.m_Core.Team(pResult->m_ClientID);
 
-	if(Team < TEAM_FLOCK || (Team == TEAM_FLOCK && g_Config.m_SvTeam != SV_TEAM_FORCED_SOLO) || Team >= TEAM_SUPER)
+	if(Team < TEAM_FLOCK || Team >= TEAM_SUPER)
 	{
 		pSelf->Console()->Print(
 			IConsole::OUTPUT_LEVEL_STANDARD,
@@ -740,13 +742,22 @@ void CGameContext::ConSwap(IConsole::IResult *pResult, void *pUserData)
 		return;
 	}
 
-	if(!Teams.IsStarted(Team))
+	CPlayer *pSwapPlayer = pSelf->m_apPlayers[TargetClientId];
+	if(Team == TEAM_FLOCK && g_Config.m_SvTeam != 3)
+	{
+		CCharacter *pChr = pPlayer->GetCharacter();
+		CCharacter *pSwapChr = pSwapPlayer->GetCharacter();
+		if(!pChr || !pSwapChr || pChr->m_DDRaceState != DDRACE_STARTED || pSwapChr->m_DDRaceState != DDRACE_STARTED)
+		{
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "swap", "You and other player need to have started the map");
+			return;
+		}
+	}
+	else if(!Teams.IsStarted(Team))
 	{
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "swap", "Need to have started the map to swap with a player.");
 		return;
 	}
-
-	CPlayer *pSwapPlayer = pSelf->m_apPlayers[TargetClientId];
 
 	bool SwapPending = pSwapPlayer->m_SwapTargetsClientID != pResult->m_ClientID;
 	if(SwapPending)
