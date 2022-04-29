@@ -125,9 +125,8 @@ void CProjectile::Tick()
 	// Projectile colliding with the map
 	// Projectile getting out of the map
 	if(
-		(TargetChr && TargetChr->GetPlayer()->GetTeam() != OwnerChr->GetPlayer()->GetTeam()) || 
-		Collide || m_LifeSpan < 0 || GameLayerClipped(CurPos)
-	)
+		(TargetChr && TargetChr->GetPlayer()->GetTeam() != OwnerChr->GetPlayer()->GetTeam()) ||
+		Collide || m_LifeSpan < 0 || GameLayerClipped(CurPos))
 	{
 		if(m_LifeSpan >= 0 || m_Type == WEAPON_GRENADE)
 			GameServer()->CreateSound(CurPos, m_SoundImpact);

@@ -509,7 +509,7 @@ void CCharacter::FireWeapon()
 			float v = 1 - (absolute(i) / (float)ShotSpread);
 			float Speed = mix((float)GameServer()->Tuning()->m_ShotgunSpeeddiff, 1.0f, v);
 			new CProjectile(
-				GameWorld(), 
+				GameWorld(),
 				WEAPON_SHOTGUN, //Type
 				m_pPlayer->GetCID(), //Owner
 				ProjStartPos, //Pos
