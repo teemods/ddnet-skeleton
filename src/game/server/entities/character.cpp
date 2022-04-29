@@ -522,8 +522,8 @@ void CCharacter::FireWeapon()
 				ProjStartPos, //Pos
 				vec2(cosf(a), sinf(a)) * Speed, //Dir
 				(int)(Server()->TickSpeed() * GameServer()->Tuning()->m_ShotgunLifetime), //Span
-				1, //Freeze
-				0, //Explosive
+				false, //Freeze
+				false, //Explosive
 				0, //Force
 				-1 //SoundImpact
 			);
