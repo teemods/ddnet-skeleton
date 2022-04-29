@@ -499,32 +499,39 @@ void CCharacter::FireWeapon()
 
 	case WEAPON_SHOTGUN:
 	{
-		/*int ShotSpread = 2;
+		int ShotSpread = 2;
 
-			for(int i = -ShotSpread; i <= ShotSpread; ++i)
-			{
-				float Spreading[] = {-0.185f, -0.070f, 0, 0.070f, 0.185f};
-				float a = angle(Direction);
-				a += Spreading[i+2];
-				float v = 1-(absolute(i)/(float)ShotSpread);
-				float Speed = mix((float)GameServer()->Tuning()->m_ShotgunSpeeddiff, 1.0f, v);
-				CProjectile *pProj = new CProjectile(GameWorld(), WEAPON_SHOTGUN,
-					m_pPlayer->GetCID(),
-					ProjStartPos,
-					vec2(cosf(a), sinf(a))*Speed,
-					(int)(Server()->TickSpeed()*GameServer()->Tuning()->m_ShotgunLifetime),
-					1, 0, 0, -1);
-			}
+		for(int i = -ShotSpread; i <= ShotSpread; ++i)
+		{
+			float a = angle(Direction);
+			a += 0.070f * i;
 
-			GameServer()->CreateSound(m_Pos, SOUND_SHOTGUN_FIRE);*/
-		float LaserReach;
-		if(!m_TuneZone)
-			LaserReach = GameServer()->Tuning()->m_LaserReach;
-		else
-			LaserReach = GameServer()->TuningList()[m_TuneZone].m_LaserReach;
+			float v = 1 - (absolute(i) / (float)ShotSpread);
+			float Speed = mix((float)GameServer()->Tuning()->m_ShotgunSpeeddiff, 1.0f, v);
+			new CProjectile(
+				GameWorld(), 
+				WEAPON_SHOTGUN, //Type
+				m_pPlayer->GetCID(), //Owner
+				ProjStartPos, //Pos
+				vec2(cosf(a), sinf(a)) * Speed, //Dir
+				(int)(Server()->TickSpeed() * GameServer()->Tuning()->m_ShotgunLifetime), //Span
+				1, //Freeze
+				0, //Explosive
+				0, //Force
+				-1 //SoundImpact
+			);
+		}
 
-		new CLaser(&GameServer()->m_World, m_Pos, Direction, LaserReach, m_pPlayer->GetCID(), WEAPON_SHOTGUN);
-		GameServer()->CreateSound(m_Pos, SOUND_SHOTGUN_FIRE, Teams()->TeamMask(Team(), -1, m_pPlayer->GetCID()));
+		GameServer()->CreateSound(m_Pos, SOUND_SHOTGUN_FIRE);
+
+		// float LaserReach;
+		// if(!m_TuneZone)
+		// 	LaserReach = GameServer()->Tuning()->m_LaserReach;
+		// else
+		// 	LaserReach = GameServer()->TuningList()[m_TuneZone].m_LaserReach;
+
+		// new CLaser(&GameServer()->m_World, m_Pos, Direction, LaserReach, m_pPlayer->GetCID(), WEAPON_SHOTGUN);
+		// GameServer()->CreateSound(m_Pos, SOUND_SHOTGUN_FIRE, Teams()->TeamMask(Team(), -1, m_pPlayer->GetCID()));
 	}
 	break;
 
