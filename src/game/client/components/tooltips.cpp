@@ -1,6 +1,7 @@
 #include "tooltips.h"
 
 #include <game/client/render.h>
+#include <game/client/ui.h>
 
 CTooltips::CTooltips()
 {
@@ -9,22 +10,22 @@ CTooltips::CTooltips()
 
 void CTooltips::OnReset()
 {
-	HoverTime = -1;
+	m_HoverTime = -1;
 	m_Tooltips.clear();
 }
 
 void CTooltips::SetActiveTooltip(CTooltip &Tooltip)
 {
-	if(m_pActiveTooltip != nullptr)
+	if(m_ActiveTooltip.has_value())
 		return;
 
-	m_pActiveTooltip = &Tooltip;
-	HoverTime = time_get();
+	m_ActiveTooltip.emplace(Tooltip);
+	m_HoverTime = time_get();
 }
 
 inline void CTooltips::ClearActiveTooltip()
 {
-	m_pActiveTooltip = nullptr;
+	m_ActiveTooltip.reset();
 }
 
 void CTooltips::DoToolTip(const void *pID, const CUIRect *pNearRect, const char *pText, float WidthHint)
@@ -33,13 +34,18 @@ void CTooltips::DoToolTip(const void *pID, const CUIRect *pNearRect, const char 
 	const auto result = m_Tooltips.emplace(ID, CTooltip{
 							   *pNearRect,
 							   pText,
-							   WidthHint});
+							   WidthHint,
+							   false});
 	CTooltip &Tooltip = result.first->second;
 
 	if(!result.second)
 	{
 		Tooltip.m_Rect = *pNearRect; // update in case of window resize
+		Tooltip.m_pText = pText; // update in case of language change
 	}
+
+	Tooltip.m_OnScreen = true;
+
 	if(UI()->MouseInside(&Tooltip.m_Rect))
 	{
 		SetActiveTooltip(Tooltip);
@@ -48,18 +54,22 @@ void CTooltips::DoToolTip(const void *pID, const CUIRect *pNearRect, const char 
 
 void CTooltips::OnRender()
 {
-	if(m_pActiveTooltip != nullptr)
+	if(m_ActiveTooltip.has_value())
 	{
-		CTooltip &Tooltip = *m_pActiveTooltip;
+		CTooltip &Tooltip = m_ActiveTooltip.value();
 
 		if(!UI()->MouseInside(&Tooltip.m_Rect))
 		{
+			Tooltip.m_OnScreen = false;
 			ClearActiveTooltip();
 			return;
 		}
 
+		if(!Tooltip.m_OnScreen)
+			return;
+
 		// Delay tooltip until 1 second passed.
-		if(HoverTime > time_get() - time_freq())
+		if(m_HoverTime > time_get() - time_freq())
 			return;
 
 		const float MARGIN = 5.0f;
@@ -97,8 +107,9 @@ void CTooltips::OnRender()
 			Rect.y = clamp(UI()->MouseY() - Rect.h / 2.0f, MARGIN, pScreen->h - Rect.h - MARGIN);
 		}
 
-		RenderTools()->DrawUIRect(&Rect, ColorRGBA(0.2, 0.2, 0.2, 0.80f), CUI::CORNER_ALL, 5.0f);
+		Rect.Draw(ColorRGBA(0.2, 0.2, 0.2, 0.80f), IGraphics::CORNER_ALL, 5.0f);
 		Rect.Margin(2.0f, &Rect);
 		UI()->DoLabel(&Rect, Tooltip.m_pText, 14.0f, TEXTALIGN_LEFT);
+		Tooltip.m_OnScreen = false;
 	}
 }

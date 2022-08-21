@@ -3,18 +3,11 @@
 
 #include <base/system.h>
 
-#include "graphics_defines.h"
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
-#include <libavutil/opt.h>
-#include <libswresample/swresample.h>
-#include <libswscale/swscale.h>
 };
 
-#include <engine/shared/demo.h>
 #include <engine/shared/video.h>
 
 #include <atomic>
@@ -24,10 +17,14 @@ extern "C" {
 #include <vector>
 #define ALEN 2048
 
+class CGraphics_Threaded;
+class ISound;
+class IStorage;
+
 extern LOCK g_WriteLock;
 
 // a wrapper around a single output AVStream
-typedef struct OutputStream
+struct OutputStream
 {
 	AVStream *pSt = nullptr;
 	AVCodecContext *pEnc = nullptr;
@@ -42,35 +39,35 @@ typedef struct OutputStream
 
 	std::vector<struct SwsContext *> m_vpSwsCtxs;
 	std::vector<struct SwrContext *> m_vpSwrCtxs;
-} OutputStream;
+};
 
 class CVideo : public IVideo
 {
 public:
-	CVideo(class CGraphics_Threaded *pGraphics, class ISound *pSound, class IStorage *pStorage, class IConsole *pConsole, int width, int height, const char *name);
+	CVideo(CGraphics_Threaded *pGraphics, ISound *pSound, IStorage *pStorage, int Width, int Height, const char *pName);
 	~CVideo();
 
-	virtual void Start();
-	virtual void Stop();
-	virtual void Pause(bool Pause);
-	virtual bool IsRecording() { return m_Recording; }
+	void Start() override REQUIRES(!g_WriteLock);
+	void Stop() override;
+	void Pause(bool Pause) override;
+	bool IsRecording() override { return m_Recording; }
 
-	virtual void NextVideoFrame();
-	virtual void NextVideoFrameThread();
+	void NextVideoFrame() override;
+	void NextVideoFrameThread() override;
 
-	virtual void NextAudioFrame(ISoundMixFunc Mix);
-	virtual void NextAudioFrameTimeline(ISoundMixFunc Mix);
+	void NextAudioFrame(ISoundMixFunc Mix) override;
+	void NextAudioFrameTimeline(ISoundMixFunc Mix) override;
 
 	static IVideo *Current() { return IVideo::ms_pCurrentVideo; }
 
 	static void Init() { av_log_set_level(AV_LOG_DEBUG); }
 
 private:
-	void RunVideoThread(size_t ParentThreadIndex, size_t ThreadIndex);
-	void FillVideoFrame(size_t ThreadIndex);
+	void RunVideoThread(size_t ParentThreadIndex, size_t ThreadIndex) REQUIRES(!g_WriteLock);
+	void FillVideoFrame(size_t ThreadIndex) REQUIRES(!g_WriteLock);
 	void ReadRGBFromGL(size_t ThreadIndex);
 
-	void RunAudioThread(size_t ParentThreadIndex, size_t ThreadIndex);
+	void RunAudioThread(size_t ParentThreadIndex, size_t ThreadIndex) REQUIRES(!g_WriteLock);
 	void FillAudioFrame(size_t ThreadIndex);
 
 	bool OpenVideo();
@@ -84,13 +81,13 @@ private:
 
 	bool AddStream(OutputStream *pStream, AVFormatContext *pOC, const AVCodec **ppCodec, enum AVCodecID CodecId);
 
-	class CGraphics_Threaded *m_pGraphics;
-	class IStorage *m_pStorage;
-	class ISound *m_pSound;
+	CGraphics_Threaded *m_pGraphics;
+	IStorage *m_pStorage;
+	ISound *m_pSound;
 
 	int m_Width;
 	int m_Height;
-	char m_Name[256];
+	char m_aName[256];
 	//FILE *m_dbgfile;
 	uint64_t m_VSeq = 0;
 	uint64_t m_ASeq = 0;
@@ -143,8 +140,6 @@ private:
 
 	std::atomic<int32_t> m_ProcessingVideoFrame;
 	std::atomic<int32_t> m_ProcessingAudioFrame;
-
-	std::atomic<bool> m_NextFrame;
 
 	bool m_HasAudio;
 

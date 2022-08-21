@@ -1,7 +1,12 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "pickup.h"
+#include "character.h"
+
 #include <game/generated/protocol.h>
+#include <game/mapitems.h>
+#include <game/teamscore.h>
+
 #include <game/server/gamecontext.h>
 #include <game/server/player.h>
 
@@ -14,7 +19,7 @@
 static constexpr int PickupPhysSize = 14;
 
 CPickup::CPickup(CGameWorld *pGameWorld, int Type, int SubType, int Layer, int Number) :
-	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, vec2(0, 0), PickupPhysSize)
+	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, vec2(0, 0), gs_PickupPhysSize)
 {
 	m_Type = Type;
 	m_Subtype = SubType;
@@ -64,7 +69,7 @@ void CPickup::Tick()
 
 		if(pChr && pChr->IsAlive())
 		{
-			if(m_Layer == LAYER_SWITCH && m_Number > 0 && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[pChr->Team()])
+			if(m_Layer == LAYER_SWITCH && m_Number > 0 && !Switchers()[m_Number].m_aStatus[pChr->Team()])
 				continue;
 			bool Sound = false;
 			// player picked us up, is someone was hooking us, let them go
@@ -213,12 +218,12 @@ void CPickup::Snap(int SnappingClient)
 	if(NetworkClipped(SnappingClient))
 		return;
 
-	CCharacter *Char = GameServer()->GetPlayerChar(SnappingClient);
+	CCharacter *pChar = GameServer()->GetPlayerChar(SnappingClient);
 
 	if(SnappingClient != SERVER_DEMO_CLIENT && (GameServer()->m_apPlayers[SnappingClient]->GetTeam() == TEAM_SPECTATORS || GameServer()->m_apPlayers[SnappingClient]->IsPaused()) && GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID != SPEC_FREEVIEW)
-		Char = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID);
+		pChar = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID);
 
-	int SnappingClientVersion = SnappingClient != SERVER_DEMO_CLIENT ? GameServer()->GetClientVersion(SnappingClient) : CLIENT_VERSIONNR;
+	int SnappingClientVersion = GameServer()->GetClientVersion(SnappingClient);
 
 	CNetObj_EntityEx *pEntData = 0;
 	if(SnappingClientVersion >= VERSION_DDNET_SWITCH && (m_Layer == LAYER_SWITCH || length(m_Core) > 0))
@@ -233,27 +238,34 @@ void CPickup::Snap(int SnappingClient)
 	else
 	{
 		int Tick = (Server()->Tick() % Server()->TickSpeed()) % 11;
-		if(Char && Char->IsAlive() && m_Layer == LAYER_SWITCH && m_Number > 0 && !GameServer()->Collision()->m_pSwitchers[m_Number].m_Status[Char->Team()] && !Tick)
+		if(pChar && pChar->IsAlive() && m_Layer == LAYER_SWITCH && m_Number > 0 && !Switchers()[m_Number].m_aStatus[pChar->Team()] && !Tick)
 			return;
 	}
 
 	int Size = Server()->IsSixup(SnappingClient) ? 3 * 4 : sizeof(CNetObj_Pickup);
-	CNetObj_Pickup *pP = static_cast<CNetObj_Pickup *>(Server()->SnapNewItem(NETOBJTYPE_PICKUP, GetID(), Size));
-	if(!pP)
+	CNetObj_Pickup *pPickup = static_cast<CNetObj_Pickup *>(Server()->SnapNewItem(NETOBJTYPE_PICKUP, GetID(), Size));
+	if(!pPickup)
 		return;
 
-	pP->m_X = (int)m_Pos.x;
-	pP->m_Y = (int)m_Pos.y;
-	pP->m_Type = m_Type;
+	pPickup->m_X = (int)m_Pos.x;
+	pPickup->m_Y = (int)m_Pos.y;
+	pPickup->m_Type = m_Type;
+	if(SnappingClientVersion < VERSION_DDNET_WEAPON_SHIELDS)
+	{
+		if(m_Type >= POWERUP_ARMOR_SHOTGUN && m_Type <= POWERUP_ARMOR_LASER)
+		{
+			pPickup->m_Type = POWERUP_ARMOR;
+		}
+	}
 	if(Server()->IsSixup(SnappingClient))
 	{
 		if(m_Type == POWERUP_WEAPON)
-			pP->m_Type = m_Subtype == WEAPON_SHOTGUN ? 3 : m_Subtype == WEAPON_GRENADE ? 2 : 4;
+			pPickup->m_Type = m_Subtype == WEAPON_SHOTGUN ? 3 : m_Subtype == WEAPON_GRENADE ? 2 : 4;
 		else if(m_Type == POWERUP_NINJA)
-			pP->m_Type = 5;
+			pPickup->m_Type = 5;
 	}
 	else
-		pP->m_Subtype = m_Subtype;
+		pPickup->m_Subtype = m_Subtype;
 }
 
 void CPickup::Move()

@@ -41,8 +41,8 @@ void CScorePlayerResult::SetVariant(Variant v)
 		m_Data.m_Info.m_Birthday = 0;
 		m_Data.m_Info.m_HasFinishScore = false;
 		m_Data.m_Info.m_Time = 0;
-		for(float &CpTime : m_Data.m_Info.m_CpTime)
-			CpTime = 0;
+		for(float &TimeCp : m_Data.m_Info.m_aTimeCp)
+			TimeCp = 0;
 	}
 }
 
@@ -80,13 +80,13 @@ bool CTeamrank::NextSqlResult(IDbConnection *pSqlServer, bool *pEnd, char *pErro
 	return false;
 }
 
-bool CTeamrank::SamePlayers(const std::vector<std::string> *aSortedNames)
+bool CTeamrank::SamePlayers(const std::vector<std::string> *pvSortedNames)
 {
-	if(aSortedNames->size() != m_NumNames)
+	if(pvSortedNames->size() != m_NumNames)
 		return false;
 	for(unsigned int i = 0; i < m_NumNames; i++)
 	{
-		if(str_comp(aSortedNames->at(i).c_str(), m_aaNames[i]) != 0)
+		if(str_comp(pvSortedNames->at(i).c_str(), m_aaNames[i]) != 0)
 			return false;
 	}
 	return true;
@@ -131,20 +131,27 @@ bool CScoreWorker::LoadPlayerData(IDbConnection *pSqlServer, const ISqlData *pGa
 	char aBuf[512];
 	// get best race time
 	str_format(aBuf, sizeof(aBuf),
-		"SELECT Time, cp1, cp2, cp3, cp4, cp5, cp6, cp7, cp8, cp9, cp10, "
-		"  cp11, cp12, cp13, cp14, cp15, cp16, cp17, cp18, cp19, cp20, "
-		"  cp21, cp22, cp23, cp24, cp25 "
+		"SELECT"
+		"  (SELECT Time FROM %s_race WHERE Map = ? AND Name = ? ORDER BY Time ASC LIMIT 1) AS minTime, "
+		"  cp1, cp2, cp3, cp4, cp5, cp6, cp7, cp8, cp9, cp10, cp11, cp12, cp13, cp14, "
+		"  cp15, cp16, cp17, cp18, cp19, cp20, cp21, cp22, cp23, cp24, cp25, "
+		"  (cp1 + cp2 + cp3 + cp4 + cp5 + cp6 + cp7 + cp8 + cp9 + cp10 + cp11 + cp12 + cp13 + cp14 + "
+		"  cp15 + cp16 + cp17 + cp18 + cp19 + cp20 + cp21 + cp22 + cp23 + cp24 + cp25 > 0) AS hasCP, Time "
 		"FROM %s_race "
 		"WHERE Map = ? AND Name = ? "
-		"ORDER BY Time ASC "
+		"ORDER BY hasCP DESC, Time ASC "
 		"LIMIT 1",
-		pSqlServer->GetPrefix());
+		pSqlServer->GetPrefix(), pSqlServer->GetPrefix());
 	if(pSqlServer->PrepareStatement(aBuf, pError, ErrorSize))
 	{
 		return true;
 	}
+
+	const char *pPlayer = pData->m_aName[0] != '\0' ? pData->m_aName : pData->m_aRequestingPlayer;
 	pSqlServer->BindString(1, pData->m_aMap);
 	pSqlServer->BindString(2, pData->m_aRequestingPlayer);
+	pSqlServer->BindString(3, pData->m_aMap);
+	pSqlServer->BindString(4, pPlayer);
 
 	bool End;
 	if(pSqlServer->Step(&End, pError, ErrorSize))
@@ -153,18 +160,18 @@ bool CScoreWorker::LoadPlayerData(IDbConnection *pSqlServer, const ISqlData *pGa
 	}
 	if(!End)
 	{
-		// get the best time
-		float Time = pSqlServer->GetFloat(1);
-		pResult->m_Data.m_Info.m_Time = Time;
-		pResult->m_Data.m_Info.m_Score = -Time;
-		pResult->m_Data.m_Info.m_HasFinishScore = true;
-
-		if(g_Config.m_SvCheckpointSave)
+		if(!pSqlServer->IsNull(1))
 		{
-			for(int i = 0; i < NUM_CHECKPOINTS; i++)
-			{
-				pResult->m_Data.m_Info.m_CpTime[i] = pSqlServer->GetFloat(i + 2);
-			}
+			// get the best time
+			float Time = pSqlServer->GetFloat(1);
+			pResult->m_Data.m_Info.m_Time = Time;
+			pResult->m_Data.m_Info.m_Score = -Time;
+			pResult->m_Data.m_Info.m_HasFinishScore = true;
+		}
+
+		for(int i = 0; i < NUM_CHECKPOINTS; i++)
+		{
+			pResult->m_Data.m_Info.m_aTimeCp[i] = pSqlServer->GetFloat(i + 2);
 		}
 	}
 
@@ -239,12 +246,12 @@ bool CScoreWorker::MapVote(IDbConnection *pSqlServer, const ISqlData *pGameData,
 	if(!End)
 	{
 		pResult->SetVariant(CScorePlayerResult::MAP_VOTE);
-		auto *MapVote = &pResult->m_Data.m_MapVote;
-		pSqlServer->GetString(1, MapVote->m_aMap, sizeof(MapVote->m_aMap));
-		pSqlServer->GetString(2, MapVote->m_aServer, sizeof(MapVote->m_aServer));
-		str_copy(MapVote->m_aReason, "/map", sizeof(MapVote->m_aReason));
+		auto *pMapVote = &pResult->m_Data.m_MapVote;
+		pSqlServer->GetString(1, pMapVote->m_aMap, sizeof(pMapVote->m_aMap));
+		pSqlServer->GetString(2, pMapVote->m_aServer, sizeof(pMapVote->m_aServer));
+		str_copy(pMapVote->m_aReason, "/map", sizeof(pMapVote->m_aReason));
 
-		for(char *p = MapVote->m_aServer; *p; p++) // lower case server
+		for(char *p = pMapVote->m_aServer; *p; p++) // lower case server
 			*p = tolower(*p);
 	}
 	else
@@ -450,15 +457,15 @@ bool CScoreWorker::SaveScore(IDbConnection *pSqlServer, const ISqlData *pGameDat
 		"	?, %s)",
 		pSqlServer->InsertIgnore(), pSqlServer->GetPrefix(),
 		pSqlServer->InsertTimestampAsUtc(), pData->m_Time,
-		pData->m_aCpCurrent[0], pData->m_aCpCurrent[1], pData->m_aCpCurrent[2],
-		pData->m_aCpCurrent[3], pData->m_aCpCurrent[4], pData->m_aCpCurrent[5],
-		pData->m_aCpCurrent[6], pData->m_aCpCurrent[7], pData->m_aCpCurrent[8],
-		pData->m_aCpCurrent[9], pData->m_aCpCurrent[10], pData->m_aCpCurrent[11],
-		pData->m_aCpCurrent[12], pData->m_aCpCurrent[13], pData->m_aCpCurrent[14],
-		pData->m_aCpCurrent[15], pData->m_aCpCurrent[16], pData->m_aCpCurrent[17],
-		pData->m_aCpCurrent[18], pData->m_aCpCurrent[19], pData->m_aCpCurrent[20],
-		pData->m_aCpCurrent[21], pData->m_aCpCurrent[22], pData->m_aCpCurrent[23],
-		pData->m_aCpCurrent[24], pSqlServer->False());
+		pData->m_aCurrentTimeCp[0], pData->m_aCurrentTimeCp[1], pData->m_aCurrentTimeCp[2],
+		pData->m_aCurrentTimeCp[3], pData->m_aCurrentTimeCp[4], pData->m_aCurrentTimeCp[5],
+		pData->m_aCurrentTimeCp[6], pData->m_aCurrentTimeCp[7], pData->m_aCurrentTimeCp[8],
+		pData->m_aCurrentTimeCp[9], pData->m_aCurrentTimeCp[10], pData->m_aCurrentTimeCp[11],
+		pData->m_aCurrentTimeCp[12], pData->m_aCurrentTimeCp[13], pData->m_aCurrentTimeCp[14],
+		pData->m_aCurrentTimeCp[15], pData->m_aCurrentTimeCp[16], pData->m_aCurrentTimeCp[17],
+		pData->m_aCurrentTimeCp[18], pData->m_aCurrentTimeCp[19], pData->m_aCurrentTimeCp[20],
+		pData->m_aCurrentTimeCp[21], pData->m_aCurrentTimeCp[22], pData->m_aCurrentTimeCp[23],
+		pData->m_aCurrentTimeCp[24], pSqlServer->False());
 	if(pSqlServer->PrepareStatement(aBuf, pError, ErrorSize))
 	{
 		return true;
@@ -480,11 +487,11 @@ bool CScoreWorker::SaveTeamScore(IDbConnection *pSqlServer, const ISqlData *pGam
 	char aBuf[512];
 
 	// get the names sorted in a tab separated string
-	std::vector<std::string> aNames;
+	std::vector<std::string> vNames;
 	for(unsigned int i = 0; i < pData->m_Size; i++)
-		aNames.emplace_back(pData->m_aaNames[i]);
+		vNames.emplace_back(pData->m_aaNames[i]);
 
-	std::sort(aNames.begin(), aNames.end());
+	std::sort(vNames.begin(), vNames.end());
 	str_format(aBuf, sizeof(aBuf),
 		"SELECT l.ID, Name, Time "
 		"FROM (" // preselect teams with first name in team
@@ -519,7 +526,7 @@ bool CScoreWorker::SaveTeamScore(IDbConnection *pSqlServer, const ISqlData *pGam
 			{
 				return true;
 			}
-			if(Teamrank.SamePlayers(&aNames))
+			if(Teamrank.SamePlayers(&vNames))
 			{
 				FoundTeam = true;
 				break;

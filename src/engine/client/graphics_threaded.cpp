@@ -3,7 +3,6 @@
 
 #include <base/detect.h>
 #include <base/math.h>
-#include <base/tl/threading.h>
 
 #if defined(CONF_FAMILY_UNIX)
 #include <pthread.h>
@@ -11,26 +10,23 @@
 
 #include <base/system.h>
 
-#include <pnglite.h>
-
 #include <engine/console.h>
+#include <engine/gfx/image_loader.h>
+#include <engine/gfx/image_manipulation.h>
 #include <engine/graphics.h>
-#include <engine/keys.h>
 #include <engine/shared/config.h>
 #include <engine/storage.h>
 #include <game/generated/client_data.h>
 #include <game/generated/client_data7.h>
 #include <game/localization.h>
 
-#include <engine/shared/image_manipulation.h>
-
-#include <cmath> // cosf, sinf, log2f
-
 #if defined(CONF_VIDEORECORDER)
-#include "video.h"
+#include <engine/shared/video.h>
 #endif
 
 #include "graphics_threaded.h"
+
+class CSemaphore;
 
 static CVideoMode g_aFakeModes[] = {
 	{8192, 4320, 8192, 4320, 0, 8, 8, 8, 0}, {7680, 4320, 7680, 4320, 0, 8, 8, 8, 0}, {5120, 2880, 5120, 2880, 0, 8, 8, 8, 0},
@@ -137,8 +133,6 @@ CGraphics_Threaded::CGraphics_Threaded()
 
 	m_RenderEnable = true;
 	m_DoScreenshot = false;
-
-	png_init(0, 0);
 }
 
 void CGraphics_Threaded::ClipEnable(int x, int y, int w, int h)
@@ -278,7 +272,7 @@ int CGraphics_Threaded::UnloadTexture(CTextureHandle *pIndex)
 	AddCmd(
 		Cmd, [] { return true; }, "failed to unload texture.");
 
-	m_TextureIndices[pIndex->Id()] = m_FirstFreeTexture;
+	m_vTextureIndices[pIndex->Id()] = m_FirstFreeTexture;
 	m_FirstFreeTexture = pIndex->Id();
 
 	pIndex->Invalidate();
@@ -358,11 +352,11 @@ IGraphics::CTextureHandle CGraphics_Threaded::LoadSpriteTextureImpl(CImageInfo &
 {
 	int bpp = ImageFormatToPixelSize(FromImageInfo.m_Format);
 
-	m_SpriteHelper.resize(w * h * bpp);
+	m_vSpriteHelper.resize((size_t)w * h * bpp);
 
-	CopyTextureFromTextureBufferSub(&m_SpriteHelper[0], w, h, (uint8_t *)FromImageInfo.m_pData, FromImageInfo.m_Width, FromImageInfo.m_Height, bpp, x, y, w, h);
+	CopyTextureFromTextureBufferSub(m_vSpriteHelper.data(), w, h, (uint8_t *)FromImageInfo.m_pData, FromImageInfo.m_Width, FromImageInfo.m_Height, bpp, x, y, w, h);
 
-	IGraphics::CTextureHandle RetHandle = LoadTextureRaw(w, h, FromImageInfo.m_Format, &m_SpriteHelper[0], FromImageInfo.m_Format, 0);
+	IGraphics::CTextureHandle RetHandle = LoadTextureRaw(w, h, FromImageInfo.m_Format, m_vSpriteHelper.data(), FromImageInfo.m_Format, 0);
 
 	return RetHandle;
 }
@@ -443,7 +437,7 @@ IGraphics::CTextureHandle CGraphics_Threaded::LoadTextureRaw(int Width, int Heig
 			}
 			str_format(NewWarning.m_aWarningMsg, sizeof(NewWarning.m_aWarningMsg), Localize("The width of texture %s is not divisible by %d, or the height is not divisible by %d, which might cause visual bugs."), aText, 16, 16);
 
-			m_Warnings.emplace_back(NewWarning);
+			m_vWarnings.emplace_back(NewWarning);
 		}
 	}
 
@@ -454,18 +448,18 @@ IGraphics::CTextureHandle CGraphics_Threaded::LoadTextureRaw(int Width, int Heig
 	int Tex = m_FirstFreeTexture;
 	if(Tex == -1)
 	{
-		size_t CurSize = m_TextureIndices.size();
-		m_TextureIndices.resize(CurSize * 2);
+		size_t CurSize = m_vTextureIndices.size();
+		m_vTextureIndices.resize(CurSize * 2);
 		for(size_t i = 0; i < CurSize - 1; ++i)
 		{
-			m_TextureIndices[CurSize + i] = CurSize + i + 1;
+			m_vTextureIndices[CurSize + i] = CurSize + i + 1;
 		}
-		m_TextureIndices.back() = -1;
+		m_vTextureIndices.back() = -1;
 
 		Tex = CurSize;
 	}
-	m_FirstFreeTexture = m_TextureIndices[Tex];
-	m_TextureIndices[Tex] = -1;
+	m_FirstFreeTexture = m_vTextureIndices[Tex];
+	m_vTextureIndices[Tex] = -1;
 
 	CCommandBuffer::SCommand_Texture_Create Cmd;
 	Cmd.m_Slot = Tex;
@@ -538,34 +532,34 @@ bool CGraphics_Threaded::LoadTextTextures(int Width, int Height, CTextureHandle 
 	int Tex = m_FirstFreeTexture;
 	if(Tex == -1)
 	{
-		size_t CurSize = m_TextureIndices.size();
-		m_TextureIndices.resize(CurSize * 2);
+		size_t CurSize = m_vTextureIndices.size();
+		m_vTextureIndices.resize(CurSize * 2);
 		for(size_t i = 0; i < CurSize - 1; ++i)
 		{
-			m_TextureIndices[CurSize + i] = CurSize + i + 1;
+			m_vTextureIndices[CurSize + i] = CurSize + i + 1;
 		}
-		m_TextureIndices.back() = -1;
+		m_vTextureIndices.back() = -1;
 
 		Tex = CurSize;
 	}
-	m_FirstFreeTexture = m_TextureIndices[Tex];
-	m_TextureIndices[Tex] = -1;
+	m_FirstFreeTexture = m_vTextureIndices[Tex];
+	m_vTextureIndices[Tex] = -1;
 
 	int Tex2 = m_FirstFreeTexture;
 	if(Tex2 == -1)
 	{
-		size_t CurSize = m_TextureIndices.size();
-		m_TextureIndices.resize(CurSize * 2);
+		size_t CurSize = m_vTextureIndices.size();
+		m_vTextureIndices.resize(CurSize * 2);
 		for(size_t i = 0; i < CurSize - 1; ++i)
 		{
-			m_TextureIndices[CurSize + i] = CurSize + i + 1;
+			m_vTextureIndices[CurSize + i] = CurSize + i + 1;
 		}
-		m_TextureIndices.back() = -1;
+		m_vTextureIndices.back() = -1;
 
 		Tex2 = CurSize;
 	}
-	m_FirstFreeTexture = m_TextureIndices[Tex2];
-	m_TextureIndices[Tex2] = -1;
+	m_FirstFreeTexture = m_vTextureIndices[Tex2];
+	m_vTextureIndices[Tex2] = -1;
 
 	CCommandBuffer::SCommand_TextTextures_Create Cmd;
 	Cmd.m_Slot = Tex;
@@ -593,10 +587,10 @@ bool CGraphics_Threaded::UnloadTextTextures(CTextureHandle &TextTexture, CTextur
 	AddCmd(
 		Cmd, [] { return true; }, "failed to unload text textures.");
 
-	m_TextureIndices[TextTexture.Id()] = m_FirstFreeTexture;
+	m_vTextureIndices[TextTexture.Id()] = m_FirstFreeTexture;
 	m_FirstFreeTexture = TextTexture.Id();
 
-	m_TextureIndices[TextOutlineTexture.Id()] = m_FirstFreeTexture;
+	m_vTextureIndices[TextOutlineTexture.Id()] = m_FirstFreeTexture;
 	m_FirstFreeTexture = TextOutlineTexture.Id();
 
 	TextTexture.Invalidate();
@@ -629,54 +623,74 @@ bool CGraphics_Threaded::UpdateTextTexture(CTextureHandle TextureID, int x, int 
 int CGraphics_Threaded::LoadPNG(CImageInfo *pImg, const char *pFilename, int StorageType)
 {
 	char aCompleteFilename[IO_MAX_PATH_LENGTH];
-
-	// open file for reading
 	IOHANDLE File = m_pStorage->OpenFile(pFilename, IOFLAG_READ, StorageType, aCompleteFilename, sizeof(aCompleteFilename));
-	if(!File)
+	if(File)
+	{
+		io_seek(File, 0, IOSEEK_END);
+		unsigned int FileSize = io_tell(File);
+		io_seek(File, 0, IOSEEK_START);
+
+		TImageByteBuffer ByteBuffer;
+		SImageByteBuffer ImageByteBuffer(&ByteBuffer);
+
+		ByteBuffer.resize(FileSize);
+		io_read(File, &ByteBuffer.front(), FileSize);
+
+		io_close(File);
+
+		uint8_t *pImgBuffer = NULL;
+		EImageFormat ImageFormat;
+		int PngliteIncompatible;
+		if(::LoadPNG(ImageByteBuffer, pFilename, PngliteIncompatible, pImg->m_Width, pImg->m_Height, pImgBuffer, ImageFormat))
+		{
+			pImg->m_pData = pImgBuffer;
+
+			if(ImageFormat == IMAGE_FORMAT_RGB) // ignore_convention
+				pImg->m_Format = CImageInfo::FORMAT_RGB;
+			else if(ImageFormat == IMAGE_FORMAT_RGBA) // ignore_convention
+				pImg->m_Format = CImageInfo::FORMAT_RGBA;
+			else
+			{
+				free(pImgBuffer);
+				return 0;
+			}
+
+			if(m_WarnPngliteIncompatibleImages && PngliteIncompatible != 0)
+			{
+				SWarning Warning;
+				str_format(Warning.m_aWarningMsg, sizeof(Warning.m_aWarningMsg), Localize("\"%s\" is not compatible with pnglite and cannot be loaded by old DDNet versions: "), pFilename);
+				static const int FLAGS[] = {PNGLITE_COLOR_TYPE, PNGLITE_BIT_DEPTH, PNGLITE_INTERLACE_TYPE, PNGLITE_COMPRESSION_TYPE, PNGLITE_FILTER_TYPE};
+				static const char *EXPLANATION[] = {"color type", "bit depth", "interlace type", "compression type", "filter type"};
+
+				bool First = true;
+				for(int i = 0; i < (int)std::size(FLAGS); i++)
+				{
+					if((PngliteIncompatible & FLAGS[i]) != 0)
+					{
+						if(!First)
+						{
+							str_append(Warning.m_aWarningMsg, ", ", sizeof(Warning.m_aWarningMsg));
+						}
+						str_append(Warning.m_aWarningMsg, EXPLANATION[i], sizeof(Warning.m_aWarningMsg));
+						First = false;
+					}
+				}
+				str_append(Warning.m_aWarningMsg, " unsupported", sizeof(Warning.m_aWarningMsg));
+				m_vWarnings.emplace_back(Warning);
+			}
+		}
+		else
+		{
+			dbg_msg("game/png", "image had unsupported image format. filename='%s'", pFilename);
+			return 0;
+		}
+	}
+	else
 	{
 		dbg_msg("game/png", "failed to open file. filename='%s'", pFilename);
 		return 0;
 	}
 
-	png_t Png;
-	int Error = png_open_read(&Png, 0, File);
-	if(Error != PNG_NO_ERROR)
-	{
-		dbg_msg("game/png", "failed to open file. filename='%s', pnglite: %s", aCompleteFilename, png_error_string(Error));
-		io_close(File);
-		return 0;
-	}
-
-	if(Png.depth != 8 || (Png.color_type != PNG_TRUECOLOR && Png.color_type != PNG_TRUECOLOR_ALPHA))
-	{
-		dbg_msg("game/png", "invalid format. filename='%s'", aCompleteFilename);
-		io_close(File);
-		return 0;
-	}
-
-	unsigned char *pBuffer = (unsigned char *)malloc((size_t)Png.width * Png.height * Png.bpp);
-	Error = png_get_data(&Png, pBuffer);
-	if(Error != PNG_NO_ERROR)
-	{
-		dbg_msg("game/png", "failed to read image. filename='%s', pnglite: %s", aCompleteFilename, png_error_string(Error));
-		free(pBuffer);
-		io_close(File);
-		return 0;
-	}
-	io_close(File);
-
-	pImg->m_Width = Png.width;
-	pImg->m_Height = Png.height;
-	if(Png.color_type == PNG_TRUECOLOR)
-		pImg->m_Format = CImageInfo::FORMAT_RGB;
-	else if(Png.color_type == PNG_TRUECOLOR_ALPHA)
-		pImg->m_Format = CImageInfo::FORMAT_RGBA;
-	else
-	{
-		free(pBuffer);
-		return 0;
-	}
-	pImg->m_pData = pBuffer;
 	return 1;
 }
 
@@ -697,7 +711,7 @@ bool CGraphics_Threaded::CheckImageDivisibility(const char *pFileName, CImageInf
 		SWarning NewWarning;
 		str_format(NewWarning.m_aWarningMsg, sizeof(NewWarning.m_aWarningMsg), Localize("The width of texture %s is not divisible by %d, or the height is not divisible by %d, which might cause visual bugs."), pFileName, DivX, DivY);
 
-		m_Warnings.emplace_back(NewWarning);
+		m_vWarnings.emplace_back(NewWarning);
 
 		ImageIsValid = false;
 	}
@@ -749,7 +763,7 @@ bool CGraphics_Threaded::IsImageFormatRGBA(const char *pFileName, CImageInfo &Im
 		}
 		str_format(NewWarning.m_aWarningMsg, sizeof(NewWarning.m_aWarningMsg),
 			Localize("The format of texture %s is not RGBA which will cause visual bugs."), aText);
-		m_Warnings.emplace_back(NewWarning);
+		m_vWarnings.emplace_back(NewWarning);
 		return false;
 	}
 	return true;
@@ -808,21 +822,21 @@ bool CGraphics_Threaded::ScreenshotDirect()
 	{
 		// find filename
 		char aWholePath[1024];
-		png_t Png;
 
 		IOHANDLE File = m_pStorage->OpenFile(m_aScreenshotName, IOFLAG_WRITE, IStorage::TYPE_SAVE, aWholePath, sizeof(aWholePath));
-		if(!File)
+		if(File)
 		{
-			dbg_msg("game/screenshot", "failed to open file. filename='%s'", aWholePath);
-		}
-		else
-		{
-			// save png
 			char aBuf[256];
 			str_format(aBuf, sizeof(aBuf), "saved screenshot to '%s'", aWholePath);
-			m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "client", aBuf, ColorRGBA(1.0f, 0.6f, 0.3f, 1.0f));
-			png_open_write(&Png, 0, File);
-			png_set_data(&Png, Image.m_Width, Image.m_Height, 8, PNG_TRUECOLOR_ALPHA, (unsigned char *)Image.m_pData);
+
+			// save png
+			m_pConsole->Print(IConsole::OUTPUT_LEVEL_STANDARD, "client", aBuf, ColorRGBA{1.0f, 0.6f, 0.3f, 1.0f});
+
+			TImageByteBuffer ByteBuffer;
+			SImageByteBuffer ImageByteBuffer(&ByteBuffer);
+
+			if(SavePNG(IMAGE_FORMAT_RGBA, (const uint8_t *)Image.m_pData, ImageByteBuffer, Image.m_Width, Image.m_Height))
+				io_write(File, &ByteBuffer.front(), ByteBuffer.size());
 			io_close(File);
 		}
 
@@ -961,12 +975,12 @@ void CGraphics_Threaded::SetColor(float r, float g, float b, float a)
 	}
 }
 
-void CGraphics_Threaded::SetColor(ColorRGBA rgb)
+void CGraphics_Threaded::SetColor(ColorRGBA Color)
 {
-	SetColor(rgb.r, rgb.g, rgb.b, rgb.a);
+	SetColor(Color.r, Color.g, Color.b, Color.a);
 }
 
-void CGraphics_Threaded::SetColor4(vec4 TopLeft, vec4 TopRight, vec4 BottomLeft, vec4 BottomRight)
+void CGraphics_Threaded::SetColor4(ColorRGBA TopLeft, ColorRGBA TopRight, ColorRGBA BottomLeft, ColorRGBA BottomRight)
 {
 	dbg_assert(m_Drawing != 0, "called Graphics()->SetColor without begin");
 	CColorVertex Array[4] = {
@@ -1223,7 +1237,368 @@ void CGraphics_Threaded::QuadsText(float x, float y, float Size, const char *pTe
 	}
 }
 
-void CGraphics_Threaded::RenderTileLayer(int BufferContainerIndex, float *pColor, char **pOffsets, unsigned int *IndicedVertexDrawNum, size_t NumIndicesOffset)
+void CGraphics_Threaded::DrawRectExt(float x, float y, float w, float h, float r, int Corners)
+{
+	const int NumSegments = 8;
+	const float SegmentsAngle = pi / 2 / NumSegments;
+	IGraphics::CFreeformItem aFreeform[NumSegments * 4];
+	size_t NumItems = 0;
+
+	for(int i = 0; i < NumSegments; i += 2)
+	{
+		float a1 = i * SegmentsAngle;
+		float a2 = (i + 1) * SegmentsAngle;
+		float a3 = (i + 2) * SegmentsAngle;
+		float Ca1 = cosf(a1);
+		float Ca2 = cosf(a2);
+		float Ca3 = cosf(a3);
+		float Sa1 = sinf(a1);
+		float Sa2 = sinf(a2);
+		float Sa3 = sinf(a3);
+
+		if(Corners & CORNER_TL)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + r, y + r,
+				x + (1 - Ca1) * r, y + (1 - Sa1) * r,
+				x + (1 - Ca3) * r, y + (1 - Sa3) * r,
+				x + (1 - Ca2) * r, y + (1 - Sa2) * r);
+
+		if(Corners & CORNER_TR)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + w - r, y + r,
+				x + w - r + Ca1 * r, y + (1 - Sa1) * r,
+				x + w - r + Ca3 * r, y + (1 - Sa3) * r,
+				x + w - r + Ca2 * r, y + (1 - Sa2) * r);
+
+		if(Corners & CORNER_BL)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + r, y + h - r,
+				x + (1 - Ca1) * r, y + h - r + Sa1 * r,
+				x + (1 - Ca3) * r, y + h - r + Sa3 * r,
+				x + (1 - Ca2) * r, y + h - r + Sa2 * r);
+
+		if(Corners & CORNER_BR)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + w - r, y + h - r,
+				x + w - r + Ca1 * r, y + h - r + Sa1 * r,
+				x + w - r + Ca3 * r, y + h - r + Sa3 * r,
+				x + w - r + Ca2 * r, y + h - r + Sa2 * r);
+	}
+	QuadsDrawFreeform(aFreeform, NumItems);
+
+	CQuadItem aQuads[9];
+	NumItems = 0;
+	aQuads[NumItems++] = CQuadItem(x + r, y + r, w - r * 2, h - r * 2); // center
+	aQuads[NumItems++] = CQuadItem(x + r, y, w - r * 2, r); // top
+	aQuads[NumItems++] = CQuadItem(x + r, y + h - r, w - r * 2, r); // bottom
+	aQuads[NumItems++] = CQuadItem(x, y + r, r, h - r * 2); // left
+	aQuads[NumItems++] = CQuadItem(x + w - r, y + r, r, h - r * 2); // right
+
+	if(!(Corners & CORNER_TL))
+		aQuads[NumItems++] = CQuadItem(x, y, r, r);
+	if(!(Corners & CORNER_TR))
+		aQuads[NumItems++] = CQuadItem(x + w, y, -r, r);
+	if(!(Corners & CORNER_BL))
+		aQuads[NumItems++] = CQuadItem(x, y + h, r, -r);
+	if(!(Corners & CORNER_BR))
+		aQuads[NumItems++] = CQuadItem(x + w, y + h, -r, -r);
+
+	QuadsDrawTL(aQuads, NumItems);
+}
+
+void CGraphics_Threaded::DrawRectExt4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, float r, int Corners)
+{
+	if(Corners == 0 || r == 0.0f)
+	{
+		SetColor4(ColorTopLeft, ColorTopRight, ColorBottomLeft, ColorBottomRight);
+		CQuadItem ItemQ = CQuadItem(x, y, w, h);
+		QuadsDrawTL(&ItemQ, 1);
+		return;
+	}
+
+	const int NumSegments = 8;
+	const float SegmentsAngle = pi / 2 / NumSegments;
+	for(int i = 0; i < NumSegments; i += 2)
+	{
+		float a1 = i * SegmentsAngle;
+		float a2 = (i + 1) * SegmentsAngle;
+		float a3 = (i + 2) * SegmentsAngle;
+		float Ca1 = cosf(a1);
+		float Ca2 = cosf(a2);
+		float Ca3 = cosf(a3);
+		float Sa1 = sinf(a1);
+		float Sa2 = sinf(a2);
+		float Sa3 = sinf(a3);
+
+		if(Corners & CORNER_TL)
+		{
+			SetColor(ColorTopLeft);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + r, y + r,
+				x + (1 - Ca1) * r, y + (1 - Sa1) * r,
+				x + (1 - Ca3) * r, y + (1 - Sa3) * r,
+				x + (1 - Ca2) * r, y + (1 - Sa2) * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_TR)
+		{
+			SetColor(ColorTopRight);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + w - r, y + r,
+				x + w - r + Ca1 * r, y + (1 - Sa1) * r,
+				x + w - r + Ca3 * r, y + (1 - Sa3) * r,
+				x + w - r + Ca2 * r, y + (1 - Sa2) * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_BL)
+		{
+			SetColor(ColorBottomLeft);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + r, y + h - r,
+				x + (1 - Ca1) * r, y + h - r + Sa1 * r,
+				x + (1 - Ca3) * r, y + h - r + Sa3 * r,
+				x + (1 - Ca2) * r, y + h - r + Sa2 * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_BR)
+		{
+			SetColor(ColorBottomRight);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + w - r, y + h - r,
+				x + w - r + Ca1 * r, y + h - r + Sa1 * r,
+				x + w - r + Ca3 * r, y + h - r + Sa3 * r,
+				x + w - r + Ca2 * r, y + h - r + Sa2 * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_ITL)
+		{
+			SetColor(ColorTopLeft);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x, y,
+				x + (1 - Ca1) * r, y - r + Sa1 * r,
+				x + (1 - Ca3) * r, y - r + Sa3 * r,
+				x + (1 - Ca2) * r, y - r + Sa2 * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_ITR)
+		{
+			SetColor(ColorTopRight);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + w, y,
+				x + w - r + Ca1 * r, y - r + Sa1 * r,
+				x + w - r + Ca3 * r, y - r + Sa3 * r,
+				x + w - r + Ca2 * r, y - r + Sa2 * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_IBL)
+		{
+			SetColor(ColorBottomLeft);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x, y + h,
+				x + (1 - Ca1) * r, y + h + (1 - Sa1) * r,
+				x + (1 - Ca3) * r, y + h + (1 - Sa3) * r,
+				x + (1 - Ca2) * r, y + h + (1 - Sa2) * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+
+		if(Corners & CORNER_IBR)
+		{
+			SetColor(ColorBottomRight);
+			IGraphics::CFreeformItem ItemF = IGraphics::CFreeformItem(
+				x + w, y + h,
+				x + w - r + Ca1 * r, y + h + (1 - Sa1) * r,
+				x + w - r + Ca3 * r, y + h + (1 - Sa3) * r,
+				x + w - r + Ca2 * r, y + h + (1 - Sa2) * r);
+			QuadsDrawFreeform(&ItemF, 1);
+		}
+	}
+
+	SetColor4(ColorTopLeft, ColorTopRight, ColorBottomLeft, ColorBottomRight);
+	CQuadItem ItemQ = CQuadItem(x + r, y + r, w - r * 2, h - r * 2); // center
+	QuadsDrawTL(&ItemQ, 1);
+
+	SetColor4(ColorTopLeft, ColorTopRight, ColorTopLeft, ColorTopRight);
+	ItemQ = CQuadItem(x + r, y, w - r * 2, r); // top
+	QuadsDrawTL(&ItemQ, 1);
+
+	SetColor4(ColorBottomLeft, ColorBottomRight, ColorBottomLeft, ColorBottomRight);
+	ItemQ = CQuadItem(x + r, y + h - r, w - r * 2, r); // bottom
+	QuadsDrawTL(&ItemQ, 1);
+
+	SetColor4(ColorTopLeft, ColorTopLeft, ColorBottomLeft, ColorBottomLeft);
+	ItemQ = CQuadItem(x, y + r, r, h - r * 2); // left
+	QuadsDrawTL(&ItemQ, 1);
+
+	SetColor4(ColorTopRight, ColorTopRight, ColorBottomRight, ColorBottomRight);
+	ItemQ = CQuadItem(x + w - r, y + r, r, h - r * 2); // right
+	QuadsDrawTL(&ItemQ, 1);
+
+	if(!(Corners & CORNER_TL))
+	{
+		SetColor(ColorTopLeft);
+		ItemQ = CQuadItem(x, y, r, r);
+		QuadsDrawTL(&ItemQ, 1);
+	}
+
+	if(!(Corners & CORNER_TR))
+	{
+		SetColor(ColorTopRight);
+		ItemQ = CQuadItem(x + w, y, -r, r);
+		QuadsDrawTL(&ItemQ, 1);
+	}
+
+	if(!(Corners & CORNER_BL))
+	{
+		SetColor(ColorBottomLeft);
+		ItemQ = CQuadItem(x, y + h, r, -r);
+		QuadsDrawTL(&ItemQ, 1);
+	}
+
+	if(!(Corners & CORNER_BR))
+	{
+		SetColor(ColorBottomRight);
+		ItemQ = CQuadItem(x + w, y + h, -r, -r);
+		QuadsDrawTL(&ItemQ, 1);
+	}
+}
+
+int CGraphics_Threaded::CreateRectQuadContainer(float x, float y, float w, float h, float r, int Corners)
+{
+	int ContainerIndex = CreateQuadContainer(false);
+
+	if(Corners == 0 || r == 0.0f)
+	{
+		CQuadItem ItemQ = CQuadItem(x, y, w, h);
+		QuadContainerAddQuads(ContainerIndex, &ItemQ, 1);
+		QuadContainerUpload(ContainerIndex);
+		QuadContainerChangeAutomaticUpload(ContainerIndex, true);
+		return ContainerIndex;
+	}
+
+	const int NumSegments = 8;
+	const float SegmentsAngle = pi / 2 / NumSegments;
+	IGraphics::CFreeformItem aFreeform[NumSegments * 4];
+	size_t NumItems = 0;
+
+	for(int i = 0; i < NumSegments; i += 2)
+	{
+		float a1 = i * SegmentsAngle;
+		float a2 = (i + 1) * SegmentsAngle;
+		float a3 = (i + 2) * SegmentsAngle;
+		float Ca1 = cosf(a1);
+		float Ca2 = cosf(a2);
+		float Ca3 = cosf(a3);
+		float Sa1 = sinf(a1);
+		float Sa2 = sinf(a2);
+		float Sa3 = sinf(a3);
+
+		if(Corners & CORNER_TL)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + r, y + r,
+				x + (1 - Ca1) * r, y + (1 - Sa1) * r,
+				x + (1 - Ca3) * r, y + (1 - Sa3) * r,
+				x + (1 - Ca2) * r, y + (1 - Sa2) * r);
+
+		if(Corners & CORNER_TR)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + w - r, y + r,
+				x + w - r + Ca1 * r, y + (1 - Sa1) * r,
+				x + w - r + Ca3 * r, y + (1 - Sa3) * r,
+				x + w - r + Ca2 * r, y + (1 - Sa2) * r);
+
+		if(Corners & CORNER_BL)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + r, y + h - r,
+				x + (1 - Ca1) * r, y + h - r + Sa1 * r,
+				x + (1 - Ca3) * r, y + h - r + Sa3 * r,
+				x + (1 - Ca2) * r, y + h - r + Sa2 * r);
+
+		if(Corners & CORNER_BR)
+			aFreeform[NumItems++] = IGraphics::CFreeformItem(
+				x + w - r, y + h - r,
+				x + w - r + Ca1 * r, y + h - r + Sa1 * r,
+				x + w - r + Ca3 * r, y + h - r + Sa3 * r,
+				x + w - r + Ca2 * r, y + h - r + Sa2 * r);
+	}
+
+	if(NumItems > 0)
+		QuadContainerAddQuads(ContainerIndex, aFreeform, NumItems);
+
+	CQuadItem aQuads[9];
+	NumItems = 0;
+	aQuads[NumItems++] = CQuadItem(x + r, y + r, w - r * 2, h - r * 2); // center
+	aQuads[NumItems++] = CQuadItem(x + r, y, w - r * 2, r); // top
+	aQuads[NumItems++] = CQuadItem(x + r, y + h - r, w - r * 2, r); // bottom
+	aQuads[NumItems++] = CQuadItem(x, y + r, r, h - r * 2); // left
+	aQuads[NumItems++] = CQuadItem(x + w - r, y + r, r, h - r * 2); // right
+
+	if(!(Corners & CORNER_TL))
+		aQuads[NumItems++] = CQuadItem(x, y, r, r);
+	if(!(Corners & CORNER_TR))
+		aQuads[NumItems++] = CQuadItem(x + w, y, -r, r);
+	if(!(Corners & CORNER_BL))
+		aQuads[NumItems++] = CQuadItem(x, y + h, r, -r);
+	if(!(Corners & CORNER_BR))
+		aQuads[NumItems++] = CQuadItem(x + w, y + h, -r, -r);
+
+	if(NumItems > 0)
+		QuadContainerAddQuads(ContainerIndex, aQuads, NumItems);
+
+	QuadContainerUpload(ContainerIndex);
+	QuadContainerChangeAutomaticUpload(ContainerIndex, true);
+
+	return ContainerIndex;
+}
+
+void CGraphics_Threaded::DrawRect(float x, float y, float w, float h, ColorRGBA Color, int Corners, float Rounding)
+{
+	TextureClear();
+	QuadsBegin();
+	SetColor(Color);
+	DrawRectExt(x, y, w, h, Rounding, Corners);
+	QuadsEnd();
+}
+
+void CGraphics_Threaded::DrawRect4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, int Corners, float Rounding)
+{
+	TextureClear();
+	QuadsBegin();
+	DrawRectExt4(x, y, w, h, ColorTopLeft, ColorTopRight, ColorBottomLeft, ColorBottomRight, Rounding, Corners);
+	QuadsEnd();
+}
+
+void CGraphics_Threaded::DrawCircle(float CenterX, float CenterY, float Radius, int Segments)
+{
+	IGraphics::CFreeformItem aItems[32];
+	size_t NumItems = 0;
+	const float SegmentsAngle = 2 * pi / Segments;
+	for(int i = 0; i < Segments; i += 2)
+	{
+		const float a1 = i * SegmentsAngle;
+		const float a2 = (i + 1) * SegmentsAngle;
+		const float a3 = (i + 2) * SegmentsAngle;
+		aItems[NumItems++] = IGraphics::CFreeformItem(
+			CenterX, CenterY,
+			CenterX + cosf(a1) * Radius, CenterY + sinf(a1) * Radius,
+			CenterX + cosf(a3) * Radius, CenterY + sinf(a3) * Radius,
+			CenterX + cosf(a2) * Radius, CenterY + sinf(a2) * Radius);
+		if(NumItems == std::size(aItems))
+		{
+			QuadsDrawFreeform(aItems, std::size(aItems));
+			NumItems = 0;
+		}
+	}
+	if(NumItems)
+		QuadsDrawFreeform(aItems, NumItems);
+}
+
+void CGraphics_Threaded::RenderTileLayer(int BufferContainerIndex, const ColorRGBA &Color, char **pOffsets, unsigned int *pIndicedVertexDrawNum, size_t NumIndicesOffset)
 {
 	if(NumIndicesOffset == 0)
 		return;
@@ -1233,34 +1608,34 @@ void CGraphics_Threaded::RenderTileLayer(int BufferContainerIndex, float *pColor
 	Cmd.m_State = m_State;
 	Cmd.m_IndicesDrawNum = NumIndicesOffset;
 	Cmd.m_BufferContainerIndex = BufferContainerIndex;
-	mem_copy(&Cmd.m_Color, pColor, sizeof(Cmd.m_Color));
+	Cmd.m_Color = Color;
 
-	void *Data = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
-	if(Data == 0x0)
+	void *pData = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
+	if(pData == 0x0)
 	{
 		// kick command buffer and try again
 		KickCommandBuffer();
 
-		Data = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
-		if(Data == 0x0)
+		pData = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
+		if(pData == 0x0)
 		{
 			dbg_msg("graphics", "failed to allocate data for vertices");
 			return;
 		}
 	}
-	Cmd.m_pIndicesOffsets = (char **)Data;
-	Cmd.m_pDrawCount = (unsigned int *)(((char *)Data) + (sizeof(char *) * NumIndicesOffset));
+	Cmd.m_pIndicesOffsets = (char **)pData;
+	Cmd.m_pDrawCount = (unsigned int *)(((char *)pData) + (sizeof(char *) * NumIndicesOffset));
 
 	if(!AddCmd(
 		   Cmd, [&] {
-			   Data = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
-			   if(Data == 0x0)
+			   pData = m_pCommandBuffer->AllocData((sizeof(char *) + sizeof(unsigned int)) * NumIndicesOffset);
+			   if(pData == 0x0)
 			   {
 				   dbg_msg("graphics", "failed to allocate data for vertices");
 				   return false;
 			   }
-			   Cmd.m_pIndicesOffsets = (char **)Data;
-			   Cmd.m_pDrawCount = (unsigned int *)(((char *)Data) + (sizeof(char *) * NumIndicesOffset));
+			   Cmd.m_pIndicesOffsets = (char **)pData;
+			   Cmd.m_pDrawCount = (unsigned int *)(((char *)pData) + (sizeof(char *) * NumIndicesOffset));
 			   return true;
 		   },
 		   "failed to allocate memory for render command"))
@@ -1269,13 +1644,13 @@ void CGraphics_Threaded::RenderTileLayer(int BufferContainerIndex, float *pColor
 	}
 
 	mem_copy(Cmd.m_pIndicesOffsets, pOffsets, sizeof(char *) * NumIndicesOffset);
-	mem_copy(Cmd.m_pDrawCount, IndicedVertexDrawNum, sizeof(unsigned int) * NumIndicesOffset);
+	mem_copy(Cmd.m_pDrawCount, pIndicedVertexDrawNum, sizeof(unsigned int) * NumIndicesOffset);
 
 	m_pCommandBuffer->AddRenderCalls(NumIndicesOffset);
 	// todo max indices group check!!
 }
 
-void CGraphics_Threaded::RenderBorderTiles(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, int JumpIndex, unsigned int DrawNum)
+void CGraphics_Threaded::RenderBorderTiles(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, int JumpIndex, unsigned int DrawNum)
 {
 	if(DrawNum == 0)
 		return;
@@ -1284,15 +1659,13 @@ void CGraphics_Threaded::RenderBorderTiles(int BufferContainerIndex, float *pCol
 	Cmd.m_State = m_State;
 	Cmd.m_DrawNum = DrawNum;
 	Cmd.m_BufferContainerIndex = BufferContainerIndex;
-	mem_copy(&Cmd.m_Color, pColor, sizeof(Cmd.m_Color));
+	Cmd.m_Color = Color;
 
 	Cmd.m_pIndicesOffset = pIndexBufferOffset;
 	Cmd.m_JumpIndex = JumpIndex;
 
-	Cmd.m_Offset[0] = pOffset[0];
-	Cmd.m_Offset[1] = pOffset[1];
-	Cmd.m_Dir[0] = pDir[0];
-	Cmd.m_Dir[1] = pDir[1];
+	Cmd.m_Offset = Offset;
+	Cmd.m_Dir = Dir;
 
 	// check if we have enough free memory in the commandbuffer
 	if(!AddCmd(
@@ -1304,7 +1677,7 @@ void CGraphics_Threaded::RenderBorderTiles(int BufferContainerIndex, float *pCol
 	m_pCommandBuffer->AddRenderCalls(1);
 }
 
-void CGraphics_Threaded::RenderBorderTileLines(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, unsigned int IndexDrawNum, unsigned int RedrawNum)
+void CGraphics_Threaded::RenderBorderTileLines(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, unsigned int IndexDrawNum, unsigned int RedrawNum)
 {
 	if(IndexDrawNum == 0 || RedrawNum == 0)
 		return;
@@ -1314,14 +1687,12 @@ void CGraphics_Threaded::RenderBorderTileLines(int BufferContainerIndex, float *
 	Cmd.m_IndexDrawNum = IndexDrawNum;
 	Cmd.m_DrawNum = RedrawNum;
 	Cmd.m_BufferContainerIndex = BufferContainerIndex;
-	mem_copy(&Cmd.m_Color, pColor, sizeof(Cmd.m_Color));
+	Cmd.m_Color = Color;
 
 	Cmd.m_pIndicesOffset = pIndexBufferOffset;
 
-	Cmd.m_Offset[0] = pOffset[0];
-	Cmd.m_Offset[1] = pOffset[1];
-	Cmd.m_Dir[0] = pDir[0];
-	Cmd.m_Dir[1] = pDir[1];
+	Cmd.m_Offset = Offset;
+	Cmd.m_Dir = Dir;
 
 	// check if we have enough free memory in the commandbuffer
 	if(!AddCmd(
@@ -1370,7 +1741,7 @@ void CGraphics_Threaded::RenderQuadLayer(int BufferContainerIndex, SQuadRenderIn
 	m_pCommandBuffer->AddRenderCalls(((QuadNum - 1) / gs_GraphicsMaxQuadsRenderCount) + 1);
 }
 
-void CGraphics_Threaded::RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, float *pTextColor, float *pTextoutlineColor)
+void CGraphics_Threaded::RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, const ColorRGBA &TextColor, const ColorRGBA &TextOutlineColor)
 {
 	if(BufferContainerIndex == -1)
 		return;
@@ -1382,8 +1753,8 @@ void CGraphics_Threaded::RenderText(int BufferContainerIndex, int TextQuadNum, i
 	Cmd.m_TextureSize = TextureSize;
 	Cmd.m_TextTextureIndex = TextureTextIndex;
 	Cmd.m_TextOutlineTextureIndex = TextureTextOutlineIndex;
-	mem_copy(Cmd.m_aTextColor, pTextColor, sizeof(Cmd.m_aTextColor));
-	mem_copy(Cmd.m_aTextOutlineColor, pTextoutlineColor, sizeof(Cmd.m_aTextOutlineColor));
+	Cmd.m_TextColor = TextColor;
+	Cmd.m_TextOutlineColor = TextOutlineColor;
 
 	if(!AddCmd(
 		   Cmd, [] { return true; }, "failed to allocate memory for render text command"))
@@ -1399,14 +1770,14 @@ int CGraphics_Threaded::CreateQuadContainer(bool AutomaticUpload)
 	int Index = -1;
 	if(m_FirstFreeQuadContainer == -1)
 	{
-		Index = m_QuadContainers.size();
-		m_QuadContainers.emplace_back(AutomaticUpload);
+		Index = m_vQuadContainers.size();
+		m_vQuadContainers.emplace_back(AutomaticUpload);
 	}
 	else
 	{
 		Index = m_FirstFreeQuadContainer;
-		m_FirstFreeQuadContainer = m_QuadContainers[Index].m_FreeIndex;
-		m_QuadContainers[Index].m_FreeIndex = Index;
+		m_FirstFreeQuadContainer = m_vQuadContainers[Index].m_FreeIndex;
+		m_vQuadContainers[Index].m_FreeIndex = Index;
 	}
 
 	return Index;
@@ -1414,7 +1785,7 @@ int CGraphics_Threaded::CreateQuadContainer(bool AutomaticUpload)
 
 void CGraphics_Threaded::QuadContainerChangeAutomaticUpload(int ContainerIndex, bool AutomaticUpload)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 	Container.m_AutomaticUpload = AutomaticUpload;
 }
 
@@ -1422,18 +1793,18 @@ void CGraphics_Threaded::QuadContainerUpload(int ContainerIndex)
 {
 	if(IsQuadContainerBufferingEnabled())
 	{
-		SQuadContainer &Container = m_QuadContainers[ContainerIndex];
-		if(!Container.m_Quads.empty())
+		SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
+		if(!Container.m_vQuads.empty())
 		{
 			if(Container.m_QuadBufferObjectIndex == -1)
 			{
-				size_t UploadDataSize = Container.m_Quads.size() * sizeof(SQuadContainer::SQuad);
-				Container.m_QuadBufferObjectIndex = CreateBufferObject(UploadDataSize, &Container.m_Quads[0], 0);
+				size_t UploadDataSize = Container.m_vQuads.size() * sizeof(SQuadContainer::SQuad);
+				Container.m_QuadBufferObjectIndex = CreateBufferObject(UploadDataSize, Container.m_vQuads.data(), 0);
 			}
 			else
 			{
-				size_t UploadDataSize = Container.m_Quads.size() * sizeof(SQuadContainer::SQuad);
-				RecreateBufferObject(Container.m_QuadBufferObjectIndex, UploadDataSize, &Container.m_Quads[0], 0);
+				size_t UploadDataSize = Container.m_vQuads.size() * sizeof(SQuadContainer::SQuad);
+				RecreateBufferObject(Container.m_QuadBufferObjectIndex, UploadDataSize, Container.m_vQuads.data(), 0);
 			}
 
 			if(Container.m_QuadBufferContainerIndex == -1)
@@ -1442,22 +1813,22 @@ void CGraphics_Threaded::QuadContainerUpload(int ContainerIndex)
 				Info.m_Stride = sizeof(CCommandBuffer::SVertex);
 				Info.m_VertBufferBindingIndex = Container.m_QuadBufferObjectIndex;
 
-				Info.m_Attributes.emplace_back();
-				SBufferContainerInfo::SAttribute *pAttr = &Info.m_Attributes.back();
+				Info.m_vAttributes.emplace_back();
+				SBufferContainerInfo::SAttribute *pAttr = &Info.m_vAttributes.back();
 				pAttr->m_DataTypeCount = 2;
 				pAttr->m_FuncType = 0;
 				pAttr->m_Normalized = false;
 				pAttr->m_pOffset = 0;
 				pAttr->m_Type = GRAPHICS_TYPE_FLOAT;
-				Info.m_Attributes.emplace_back();
-				pAttr = &Info.m_Attributes.back();
+				Info.m_vAttributes.emplace_back();
+				pAttr = &Info.m_vAttributes.back();
 				pAttr->m_DataTypeCount = 2;
 				pAttr->m_FuncType = 0;
 				pAttr->m_Normalized = false;
 				pAttr->m_pOffset = (void *)(sizeof(float) * 2);
 				pAttr->m_Type = GRAPHICS_TYPE_FLOAT;
-				Info.m_Attributes.emplace_back();
-				pAttr = &Info.m_Attributes.back();
+				Info.m_vAttributes.emplace_back();
+				pAttr = &Info.m_vAttributes.back();
 				pAttr->m_DataTypeCount = 4;
 				pAttr->m_FuncType = 0;
 				pAttr->m_Normalized = true;
@@ -1472,17 +1843,17 @@ void CGraphics_Threaded::QuadContainerUpload(int ContainerIndex)
 
 int CGraphics_Threaded::QuadContainerAddQuads(int ContainerIndex, CQuadItem *pArray, int Num)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 
-	if((int)Container.m_Quads.size() > Num + CCommandBuffer::CCommandBuffer::MAX_VERTICES)
+	if((int)Container.m_vQuads.size() > Num + CCommandBuffer::CCommandBuffer::MAX_VERTICES)
 		return -1;
 
-	int RetOff = (int)Container.m_Quads.size();
+	int RetOff = (int)Container.m_vQuads.size();
 
 	for(int i = 0; i < Num; ++i)
 	{
-		Container.m_Quads.emplace_back();
-		SQuadContainer::SQuad &Quad = Container.m_Quads.back();
+		Container.m_vQuads.emplace_back();
+		SQuadContainer::SQuad &Quad = Container.m_vQuads.back();
 
 		Quad.m_aVertices[0].m_Pos.x = pArray[i].m_X;
 		Quad.m_aVertices[0].m_Pos.y = pArray[i].m_Y;
@@ -1522,17 +1893,17 @@ int CGraphics_Threaded::QuadContainerAddQuads(int ContainerIndex, CQuadItem *pAr
 
 int CGraphics_Threaded::QuadContainerAddQuads(int ContainerIndex, CFreeformItem *pArray, int Num)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 
-	if((int)Container.m_Quads.size() > Num + CCommandBuffer::CCommandBuffer::MAX_VERTICES)
+	if((int)Container.m_vQuads.size() > Num + CCommandBuffer::CCommandBuffer::MAX_VERTICES)
 		return -1;
 
-	int RetOff = (int)Container.m_Quads.size();
+	int RetOff = (int)Container.m_vQuads.size();
 
 	for(int i = 0; i < Num; ++i)
 	{
-		Container.m_Quads.emplace_back();
-		SQuadContainer::SQuad &Quad = Container.m_Quads.back();
+		Container.m_vQuads.emplace_back();
+		SQuadContainer::SQuad &Quad = Container.m_vQuads.back();
 
 		Quad.m_aVertices[0].m_Pos.x = pArray[i].m_X0;
 		Quad.m_aVertices[0].m_Pos.y = pArray[i].m_Y0;
@@ -1563,13 +1934,13 @@ int CGraphics_Threaded::QuadContainerAddQuads(int ContainerIndex, CFreeformItem 
 
 void CGraphics_Threaded::QuadContainerReset(int ContainerIndex)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 	if(IsQuadContainerBufferingEnabled())
 	{
 		if(Container.m_QuadBufferContainerIndex != -1)
 			DeleteBufferContainer(Container.m_QuadBufferContainerIndex, true);
 	}
-	Container.m_Quads.clear();
+	Container.m_vQuads.clear();
 	Container.m_QuadBufferContainerIndex = Container.m_QuadBufferObjectIndex = -1;
 }
 
@@ -1578,7 +1949,7 @@ void CGraphics_Threaded::DeleteQuadContainer(int ContainerIndex)
 	QuadContainerReset(ContainerIndex);
 
 	// also clear the container index
-	m_QuadContainers[ContainerIndex].m_FreeIndex = m_FirstFreeQuadContainer;
+	m_vQuadContainers[ContainerIndex].m_FreeIndex = m_FirstFreeQuadContainer;
 	m_FirstFreeQuadContainer = ContainerIndex;
 }
 
@@ -1589,12 +1960,12 @@ void CGraphics_Threaded::RenderQuadContainer(int ContainerIndex, int QuadDrawNum
 
 void CGraphics_Threaded::RenderQuadContainer(int ContainerIndex, int QuadOffset, int QuadDrawNum, bool ChangeWrapMode)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 
 	if(QuadDrawNum == -1)
-		QuadDrawNum = (int)Container.m_Quads.size() - QuadOffset;
+		QuadDrawNum = (int)Container.m_vQuads.size() - QuadOffset;
 
-	if((int)Container.m_Quads.size() < QuadOffset + QuadDrawNum || QuadDrawNum == 0)
+	if((int)Container.m_vQuads.size() < QuadOffset + QuadDrawNum || QuadDrawNum == 0)
 		return;
 
 	if(IsQuadContainerBufferingEnabled())
@@ -1625,7 +1996,7 @@ void CGraphics_Threaded::RenderQuadContainer(int ContainerIndex, int QuadOffset,
 		{
 			for(int i = 0; i < QuadDrawNum; ++i)
 			{
-				SQuadContainer::SQuad &Quad = Container.m_Quads[QuadOffset + i];
+				SQuadContainer::SQuad &Quad = Container.m_vQuads[QuadOffset + i];
 				m_aVertices[i * 6] = Quad.m_aVertices[0];
 				m_aVertices[i * 6 + 1] = Quad.m_aVertices[1];
 				m_aVertices[i * 6 + 2] = Quad.m_aVertices[2];
@@ -1637,7 +2008,7 @@ void CGraphics_Threaded::RenderQuadContainer(int ContainerIndex, int QuadOffset,
 		}
 		else
 		{
-			mem_copy(m_aVertices, &Container.m_Quads[QuadOffset], sizeof(CCommandBuffer::SVertex) * 4 * QuadDrawNum);
+			mem_copy(m_aVertices, &Container.m_vQuads[QuadOffset], sizeof(CCommandBuffer::SVertex) * 4 * QuadDrawNum);
 			m_NumVertices += 4 * QuadDrawNum;
 		}
 		m_Drawing = DRAWING_QUADS;
@@ -1651,20 +2022,20 @@ void CGraphics_Threaded::RenderQuadContainer(int ContainerIndex, int QuadOffset,
 
 void CGraphics_Threaded::RenderQuadContainerEx(int ContainerIndex, int QuadOffset, int QuadDrawNum, float X, float Y, float ScaleX, float ScaleY)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 
-	if((int)Container.m_Quads.size() < QuadOffset + 1)
+	if((int)Container.m_vQuads.size() < QuadOffset + 1)
 		return;
 
 	if(QuadDrawNum == -1)
-		QuadDrawNum = (int)Container.m_Quads.size() - QuadOffset;
+		QuadDrawNum = (int)Container.m_vQuads.size() - QuadOffset;
 
 	if(IsQuadContainerBufferingEnabled())
 	{
 		if(Container.m_QuadBufferContainerIndex == -1)
 			return;
 
-		SQuadContainer::SQuad &Quad = Container.m_Quads[QuadOffset];
+		SQuadContainer::SQuad &Quad = Container.m_vQuads[QuadOffset];
 		CCommandBuffer::SCommand_RenderQuadContainerEx Cmd;
 
 		WrapClamp();
@@ -1704,7 +2075,7 @@ void CGraphics_Threaded::RenderQuadContainerEx(int ContainerIndex, int QuadOffse
 		{
 			for(int i = 0; i < QuadDrawNum; ++i)
 			{
-				SQuadContainer::SQuad &Quad = Container.m_Quads[QuadOffset + i];
+				SQuadContainer::SQuad &Quad = Container.m_vQuads[QuadOffset + i];
 				m_aVertices[i * 6 + 0] = Quad.m_aVertices[0];
 				m_aVertices[i * 6 + 1] = Quad.m_aVertices[1];
 				m_aVertices[i * 6 + 2] = Quad.m_aVertices[2];
@@ -1739,7 +2110,7 @@ void CGraphics_Threaded::RenderQuadContainerEx(int ContainerIndex, int QuadOffse
 		}
 		else
 		{
-			mem_copy(m_aVertices, &Container.m_Quads[QuadOffset], sizeof(CCommandBuffer::SVertex) * 4 * QuadDrawNum);
+			mem_copy(m_aVertices, &Container.m_vQuads[QuadOffset], sizeof(CCommandBuffer::SVertex) * 4 * QuadDrawNum);
 			for(int i = 0; i < QuadDrawNum; ++i)
 			{
 				for(int n = 0; n < 4; ++n)
@@ -1781,7 +2152,7 @@ void CGraphics_Threaded::RenderQuadContainerAsSprite(int ContainerIndex, int Qua
 
 void CGraphics_Threaded::RenderQuadContainerAsSpriteMultiple(int ContainerIndex, int QuadOffset, int DrawCount, SRenderSpriteInfo *pRenderInfo)
 {
-	SQuadContainer &Container = m_QuadContainers[ContainerIndex];
+	SQuadContainer &Container = m_vQuadContainers[ContainerIndex];
 
 	if(DrawCount == 0)
 		return;
@@ -1792,7 +2163,7 @@ void CGraphics_Threaded::RenderQuadContainerAsSpriteMultiple(int ContainerIndex,
 			return;
 
 		WrapClamp();
-		SQuadContainer::SQuad &Quad = Container.m_Quads[0];
+		SQuadContainer::SQuad &Quad = Container.m_vQuads[0];
 		CCommandBuffer::SCommand_RenderQuadContainerAsSpriteMultiple Cmd;
 
 		Cmd.m_State = m_State;
@@ -1851,7 +2222,7 @@ void CGraphics_Threaded::RenderQuadContainerAsSpriteMultiple(int ContainerIndex,
 		for(int i = 0; i < DrawCount; ++i)
 		{
 			QuadsSetRotation(pRenderInfo[i].m_Rotation);
-			RenderQuadContainerAsSprite(ContainerIndex, QuadOffset, pRenderInfo[i].m_Pos[0], pRenderInfo[i].m_Pos[1], pRenderInfo[i].m_Scale, pRenderInfo[i].m_Scale);
+			RenderQuadContainerAsSprite(ContainerIndex, QuadOffset, pRenderInfo[i].m_Pos.x, pRenderInfo[i].m_Pos.y, pRenderInfo[i].m_Scale, pRenderInfo[i].m_Scale);
 		}
 	}
 }
@@ -1879,14 +2250,14 @@ int CGraphics_Threaded::CreateBufferObject(size_t UploadDataSize, void *pUploadD
 	int Index = -1;
 	if(m_FirstFreeBufferObjectIndex == -1)
 	{
-		Index = m_BufferObjectIndices.size();
-		m_BufferObjectIndices.push_back(Index);
+		Index = m_vBufferObjectIndices.size();
+		m_vBufferObjectIndices.push_back(Index);
 	}
 	else
 	{
 		Index = m_FirstFreeBufferObjectIndex;
-		m_FirstFreeBufferObjectIndex = m_BufferObjectIndices[Index];
-		m_BufferObjectIndices[Index] = Index;
+		m_FirstFreeBufferObjectIndex = m_vBufferObjectIndices[Index];
+		m_vBufferObjectIndices[Index] = Index;
 	}
 
 	CCommandBuffer::SCommand_CreateBufferObject Cmd;
@@ -2073,8 +2444,8 @@ void CGraphics_Threaded::CopyBufferObjectInternal(int WriteBufferIndex, int Read
 	CCommandBuffer::SCommand_CopyBufferObject Cmd;
 	Cmd.m_WriteBufferIndex = WriteBufferIndex;
 	Cmd.m_ReadBufferIndex = ReadBufferIndex;
-	Cmd.m_pWriteOffset = WriteOffset;
-	Cmd.m_pReadOffset = ReadOffset;
+	Cmd.m_WriteOffset = WriteOffset;
+	Cmd.m_ReadOffset = ReadOffset;
 	Cmd.m_CopySize = CopyDataSize;
 
 	if(!AddCmd(
@@ -2099,7 +2470,7 @@ void CGraphics_Threaded::DeleteBufferObject(int BufferIndex)
 	}
 
 	// also clear the buffer object index
-	m_BufferObjectIndices[BufferIndex] = m_FirstFreeBufferObjectIndex;
+	m_vBufferObjectIndices[BufferIndex] = m_FirstFreeBufferObjectIndex;
 	m_FirstFreeBufferObjectIndex = BufferIndex;
 }
 
@@ -2108,19 +2479,19 @@ int CGraphics_Threaded::CreateBufferContainer(SBufferContainerInfo *pContainerIn
 	int Index = -1;
 	if(m_FirstFreeVertexArrayInfo == -1)
 	{
-		Index = m_VertexArrayInfo.size();
-		m_VertexArrayInfo.emplace_back();
+		Index = m_vVertexArrayInfo.size();
+		m_vVertexArrayInfo.emplace_back();
 	}
 	else
 	{
 		Index = m_FirstFreeVertexArrayInfo;
-		m_FirstFreeVertexArrayInfo = m_VertexArrayInfo[Index].m_FreeIndex;
-		m_VertexArrayInfo[Index].m_FreeIndex = Index;
+		m_FirstFreeVertexArrayInfo = m_vVertexArrayInfo[Index].m_FreeIndex;
+		m_vVertexArrayInfo[Index].m_FreeIndex = Index;
 	}
 
 	CCommandBuffer::SCommand_CreateBufferContainer Cmd;
 	Cmd.m_BufferContainerIndex = Index;
-	Cmd.m_AttrCount = (int)pContainerInfo->m_Attributes.size();
+	Cmd.m_AttrCount = (int)pContainerInfo->m_vAttributes.size();
 	Cmd.m_Stride = pContainerInfo->m_Stride;
 	Cmd.m_VertBufferBindingIndex = pContainerInfo->m_VertBufferBindingIndex;
 
@@ -2143,9 +2514,9 @@ int CGraphics_Threaded::CreateBufferContainer(SBufferContainerInfo *pContainerIn
 		return -1;
 	}
 
-	mem_copy(Cmd.m_pAttributes, pContainerInfo->m_Attributes.data(), Cmd.m_AttrCount * sizeof(SBufferContainerInfo::SAttribute));
+	mem_copy(Cmd.m_pAttributes, pContainerInfo->m_vAttributes.data(), Cmd.m_AttrCount * sizeof(SBufferContainerInfo::SAttribute));
 
-	m_VertexArrayInfo[Index].m_AssociatedBufferObjectIndex = pContainerInfo->m_VertBufferBindingIndex;
+	m_vVertexArrayInfo[Index].m_AssociatedBufferObjectIndex = pContainerInfo->m_VertBufferBindingIndex;
 
 	return Index;
 }
@@ -2167,18 +2538,18 @@ void CGraphics_Threaded::DeleteBufferContainer(int ContainerIndex, bool DestroyA
 	if(DestroyAllBO)
 	{
 		// delete all associated references
-		int BufferObjectIndex = m_VertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex;
+		int BufferObjectIndex = m_vVertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex;
 		if(BufferObjectIndex != -1)
 		{
 			// clear the buffer object index
-			m_BufferObjectIndices[BufferObjectIndex] = m_FirstFreeBufferObjectIndex;
+			m_vBufferObjectIndices[BufferObjectIndex] = m_FirstFreeBufferObjectIndex;
 			m_FirstFreeBufferObjectIndex = BufferObjectIndex;
 		}
 	}
-	m_VertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex = -1;
+	m_vVertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex = -1;
 
 	// also clear the buffer object index
-	m_VertexArrayInfo[ContainerIndex].m_FreeIndex = m_FirstFreeVertexArrayInfo;
+	m_vVertexArrayInfo[ContainerIndex].m_FreeIndex = m_FirstFreeVertexArrayInfo;
 	m_FirstFreeVertexArrayInfo = ContainerIndex;
 }
 
@@ -2186,7 +2557,7 @@ void CGraphics_Threaded::UpdateBufferContainerInternal(int ContainerIndex, SBuff
 {
 	CCommandBuffer::SCommand_UpdateBufferContainer Cmd;
 	Cmd.m_BufferContainerIndex = ContainerIndex;
-	Cmd.m_AttrCount = (int)pContainerInfo->m_Attributes.size();
+	Cmd.m_AttrCount = (int)pContainerInfo->m_vAttributes.size();
 	Cmd.m_Stride = pContainerInfo->m_Stride;
 	Cmd.m_VertBufferBindingIndex = pContainerInfo->m_VertBufferBindingIndex;
 
@@ -2209,9 +2580,9 @@ void CGraphics_Threaded::UpdateBufferContainerInternal(int ContainerIndex, SBuff
 		return;
 	}
 
-	mem_copy(Cmd.m_pAttributes, pContainerInfo->m_Attributes.data(), Cmd.m_AttrCount * sizeof(SBufferContainerInfo::SAttribute));
+	mem_copy(Cmd.m_pAttributes, pContainerInfo->m_vAttributes.data(), Cmd.m_AttrCount * sizeof(SBufferContainerInfo::SAttribute));
 
-	m_VertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex = pContainerInfo->m_VertBufferBindingIndex;
+	m_vVertexArrayInfo[ContainerIndex].m_AssociatedBufferObjectIndex = pContainerInfo->m_VertBufferBindingIndex;
 }
 
 void CGraphics_Threaded::IndicesNumRequiredNotify(unsigned int RequiredIndicesCount)
@@ -2251,7 +2622,7 @@ int CGraphics_Threaded::IssueInit()
 	if(g_Config.m_GfxHighdpi)
 		Flags |= IGraphicsBackend::INITFLAG_HIGHDPI;
 
-	int r = m_pBackend->Init("DDNet Client", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, g_Config.m_GfxFsaaSamples, Flags, &g_Config.m_GfxDesktopWidth, &g_Config.m_GfxDesktopHeight, &m_ScreenWidth, &m_ScreenHeight, m_pStorage);
+	int r = m_pBackend->Init("DDNet Client", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, &g_Config.m_GfxFsaaSamples, Flags, &g_Config.m_GfxDesktopWidth, &g_Config.m_GfxDesktopHeight, &m_ScreenWidth, &m_ScreenHeight, m_pStorage);
 	AddBackEndWarningIfExists();
 	if(r == 0)
 	{
@@ -2310,7 +2681,7 @@ void CGraphics_Threaded::AddBackEndWarningIfExists()
 	{
 		SWarning NewWarning;
 		str_format(NewWarning.m_aWarningMsg, sizeof(NewWarning.m_aWarningMsg), "%s", Localize(pErrStr));
-		m_Warnings.emplace_back(NewWarning);
+		m_vWarnings.emplace_back(NewWarning);
 	}
 }
 
@@ -2323,7 +2694,11 @@ int CGraphics_Threaded::InitWindow()
 	// try disabling fsaa
 	while(g_Config.m_GfxFsaaSamples)
 	{
-		g_Config.m_GfxFsaaSamples--;
+		// 4 is the minimum required by OpenGL ES spec (GL_MAX_SAMPLES - https://www.khronos.org/registry/OpenGL-Refpages/es3.0/html/glGet.xhtml), so can probably also be assumed for OpenGL
+		if(g_Config.m_GfxFsaaSamples > 4)
+			g_Config.m_GfxFsaaSamples = 4;
+		else
+			g_Config.m_GfxFsaaSamples = 0;
 
 		if(g_Config.m_GfxFsaaSamples)
 			dbg_msg("gfx", "lowering FSAA to %d and trying again", g_Config.m_GfxFsaaSamples);
@@ -2445,10 +2820,10 @@ int CGraphics_Threaded::Init()
 
 	// init textures
 	m_FirstFreeTexture = 0;
-	m_TextureIndices.resize(CCommandBuffer::MAX_TEXTURES);
-	for(int i = 0; i < (int)m_TextureIndices.size() - 1; i++)
-		m_TextureIndices[i] = i + 1;
-	m_TextureIndices.back() = -1;
+	m_vTextureIndices.resize(CCommandBuffer::MAX_TEXTURES);
+	for(int i = 0; i < (int)m_vTextureIndices.size() - 1; i++)
+		m_vTextureIndices[i] = i + 1;
+	m_vTextureIndices.back() = -1;
 
 	m_FirstFreeVertexArrayInfo = -1;
 	m_FirstFreeBufferObjectIndex = -1;
@@ -2522,6 +2897,11 @@ void CGraphics_Threaded::Maximize()
 {
 	// TODO: SDL
 	m_pBackend->Maximize();
+}
+
+void CGraphics_Threaded::WarnPngliteIncompatibleImages(bool Warn)
+{
+	m_WarnPngliteIncompatibleImages = Warn;
 }
 
 void CGraphics_Threaded::SetWindowParams(int FullscreenMode, bool IsBorderless, bool AllowResizing)
@@ -2608,13 +2988,13 @@ void CGraphics_Threaded::GotResized(int w, int h, int RefreshRate)
 	KickCommandBuffer();
 	WaitForIdle();
 
-	for(auto &ResizeListener : m_ResizeListeners)
+	for(auto &ResizeListener : m_vResizeListeners)
 		ResizeListener.m_pFunc(ResizeListener.m_pUser);
 }
 
 void CGraphics_Threaded::AddWindowResizeListener(WINDOW_RESIZE_FUNC pFunc, void *pUser)
 {
-	m_ResizeListeners.emplace_back(pFunc, pUser);
+	m_vResizeListeners.emplace_back(pFunc, pUser);
 }
 
 int CGraphics_Threaded::GetWindowScreen()
@@ -2689,18 +3069,18 @@ void CGraphics_Threaded::TakeScreenshot(const char *pFilename)
 
 void CGraphics_Threaded::TakeCustomScreenshot(const char *pFilename)
 {
-	str_copy(m_aScreenshotName, pFilename, sizeof(m_aScreenshotName));
+	str_copy(m_aScreenshotName, pFilename);
 	m_DoScreenshot = true;
 }
 
 void CGraphics_Threaded::Swap()
 {
-	if(!m_Warnings.empty())
+	if(!m_vWarnings.empty())
 	{
 		SWarning *pCurWarning = GetCurWarning();
 		if(pCurWarning->m_WasShown)
 		{
-			m_Warnings.erase(m_Warnings.begin());
+			m_vWarnings.erase(m_vWarnings.begin());
 		}
 	}
 
@@ -2815,11 +3195,11 @@ void CGraphics_Threaded::WaitForIdle()
 
 SWarning *CGraphics_Threaded::GetCurWarning()
 {
-	if(m_Warnings.empty())
+	if(m_vWarnings.empty())
 		return NULL;
 	else
 	{
-		SWarning *pCurWarning = &m_Warnings[0];
+		SWarning *pCurWarning = m_vWarnings.data();
 		return pCurWarning;
 	}
 }

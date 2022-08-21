@@ -3,9 +3,9 @@ if(CMAKE_VERSION VERSION_LESS 3.12)
   cmake_policy(VERSION ${CMAKE_VERSION})
 endif()
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9 CACHE INTERNAL "")
-if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 10.9)
-  message(WARNING "Building for macOS < 10.9 is not supported")
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13 CACHE INTERNAL "")
+if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 10.13)
+  message(WARNING "Building for macOS < 10.13 is not supported")
 endif()
 
 file(STRINGS src/game/version.h VERSION_LINE
@@ -82,6 +82,9 @@ endif()
 
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+  include(CheckLinkerFlag)
+endif()
 include(CheckSymbolExists)
 if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Emscripten"))
   include(CheckAtomic)
@@ -95,6 +98,7 @@ else()
 endif()
 
 set(AUTO_DEPENDENCIES_DEFAULT OFF)
+
 set(AUTO_VULKAN_BACKEND ON)
 if(TARGET_OS STREQUAL "windows")
   set(AUTO_DEPENDENCIES_DEFAULT ON)
@@ -126,6 +130,8 @@ option(DEV "Don't generate stuff necessary for packaging" OFF)
 option(VULKAN "Enable the vulkan backend" ${AUTO_VULKAN_BACKEND})
 
 option(EXCEPTION_HANDLING "Enable exception handling (only works with Windows as of now)" OFF)
+option(IPO "Enable interprocedural optimizations" OFF)
+option(FUSE_LD "Linker to use" OFF)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
   include(${PROJECT_SOURCE_DIR}/cmake/toolchains/Emscripten.toolchain)
@@ -156,6 +162,21 @@ if(NOT(CMAKE_BUILD_TYPE MATCHES "^(Release|Debug|RelWithDebInfo|MinSizeRel)$"))
 endif()
 
 set(DBG $<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>)
+
+if(IPO)
+  if(CMAKE_VERSION VERSION_GREATER 3.9)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
+    if(ipo_supported)
+      message(STATUS "IPO is enabled")
+      set(ENABLE_IPO TRUE)
+    else()
+      message(WARNING "IPO is not supported: ${ipo_output}")
+    endif()
+  else()
+      message(WARNING "IPO enablement requires CMake 3.9+")
+  endif()
+endif()
 
 if(CMAKE_VERSION VERSION_LESS 3.0)
   configure_file(src/game/version.h vd.h)
@@ -189,84 +210,151 @@ function(add_c_compiler_flag_if_supported VARIABLE FLAG)
   endif()
 endfunction()
 
+function(add_cxx_compiler_flag_if_supported VARIABLE FLAG)
+  if(ARGC GREATER 2)
+    set(CHECKED_FLAG "${ARGV2}")
+  else()
+    set(CHECKED_FLAG "${FLAG}")
+  endif()
+  string(REGEX REPLACE "[^A-Za-z0-9]" "_" CONFIG_VARIABLE "FLAG_SUPPORTED${CHECKED_FLAG}")
+  check_cxx_compiler_flag("${CHECKED_FLAG}" ${CONFIG_VARIABLE})
+  if(${CONFIG_VARIABLE})
+    if(${VARIABLE})
+      set("${VARIABLE}" "${${VARIABLE}};${FLAG}" PARENT_SCOPE)
+    else()
+      set("${VARIABLE}" "${FLAG}" PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
+
+function(add_linker_flag_if_supported VARIABLE FLAG)
+  if(ARGC GREATER 2)
+    set(CHECKED_FLAG "${ARGV2}")
+  else()
+    set(CHECKED_FLAG "${FLAG}")
+  endif()
+  string(REGEX REPLACE "[^A-Za-z0-9]" "_" CONFIG_VARIABLE "FLAG_SUPPORTED${CHECKED_FLAG}")
+  if(CMAKE_VERSION VERSION_LESS 3.18)
+    set(${CONFIG_VARIABLE} OFF)
+  else()
+    check_linker_flag(C "${CHECKED_FLAG}" ${CONFIG_VARIABLE})
+  endif()
+  if(${CONFIG_VARIABLE})
+    if(${VARIABLE})
+      set("${VARIABLE}" "${${VARIABLE}};${FLAG}" PARENT_SCOPE)
+    else()
+      set("${VARIABLE}" "${FLAG}" PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
+
 # Force compiler colors on when using ninja. Ninja filters the colors out when
 # it's not printing to a terminal on its own.
 if(CMAKE_GENERATOR STREQUAL "Ninja")
-  add_c_compiler_flag_if_supported(OUR_FLAGS -fdiagnostics-color=always)
-  add_c_compiler_flag_if_supported(OUR_FLAGS -fcolor-diagnostics)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS -fdiagnostics-color=always)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS -fcolor-diagnostics)
 endif()
 
 if(NOT MSVC AND NOT HAIKU)
-  if(CMAKE_VERSION VERSION_LESS 3.1 OR TARGET_OS STREQUAL "mac")
-    check_cxx_compiler_flag(-std=gnu++17 FLAG_SUPPORTED_std_gnu__17)
-    if(FLAG_SUPPORTED_std_gnu__17)
-      if(CMAKE_CXX_FLAGS)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17")
+  IF(NOT TARGET_OS STREQUAL "mac")
+    if(NOT FUSE_LD STREQUAL OFF)
+      add_linker_flag_if_supported(OUR_FLAGS_LINK -fuse-ld=${FUSE_LD})
+      if(FLAG_SUPPORTED_fuse_ld_${FUSE_LD})
+        message(STATUS "Using ${FUSE_LD} linker")
+      endif()
+    else()
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR NOT ENABLE_IPO)
+        # GCC+LTO: pthread_create has failed: Resource temporarily unavailable
+        add_linker_flag_if_supported(OUR_FLAGS_LINK -fuse-ld=mold)
+        if(FLAG_SUPPORTED_fuse_ld_mold)
+          message(STATUS "Using mold linker")
+        else()
+          # Does not support GCC+LTO
+          add_linker_flag_if_supported(OUR_FLAGS_LINK -fuse-ld=lld)
+          if(FLAG_SUPPORTED_fuse_ld_lld)
+            message(STATUS "Using lld linker")
+          else()
+            add_linker_flag_if_supported(OUR_FLAGS_LINK -fuse-ld=gold)
+            if(FLAG_SUPPORTED_fuse_ld_gold)
+              message(STATUS "Using gold linker")
+            endif()
+          endif()
+        endif()
       else()
-        set(CMAKE_CXX_FLAGS -std=gnu++17)
+        add_linker_flag_if_supported(OUR_FLAGS_LINK -fuse-ld=gold)
+        if(FLAG_SUPPORTED_fuse_ld_gold)
+          message(STATUS "Using gold linker")
+        endif()
       endif()
     endif()
   endif()
 
+  if(CMAKE_VERSION VERSION_LESS 3.1 OR TARGET_OS STREQUAL "mac")
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -std=gnu++17)
+  endif()
+
   # Protect the stack pointer.
   # -fstack-protector-all doesn't work on MinGW.
-  add_c_compiler_flag_if_supported(OUR_FLAGS -fstack-protector-all)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS -fstack-protector-all)
 
   # Disable exceptions as DDNet does not use them.
-  add_c_compiler_flag_if_supported(OUR_FLAGS -fno-exceptions)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS -fno-exceptions)
 
   # Inaccurate floating point numbers cause problems on mingw-w64-gcc when
   # compiling for x86, might cause problems elsewhere. So don't store floats
   # in registers but keep them at higher accuracy.
   if(TARGET_ARCH STREQUAL "x86")
-    add_c_compiler_flag_if_supported(OUR_FLAGS -ffloat-store)
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS -ffloat-store)
   endif()
 
   # Don't insert timestamps into PEs to keep the build reproducible.
   if(TARGET_OS STREQUAL "windows")
-    add_c_compiler_flag_if_supported(OUR_FLAGS_LINK -Wl,--no-insert-timestamp)
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS_LINK -Wl,--no-insert-timestamp)
   endif()
 
   if(TARGET_OS STREQUAL "mac")
-    add_c_compiler_flag_if_supported(OUR_FLAGS -stdlib=libc++)
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS -stdlib=libc++)
   endif()
 
   if(EXCEPTION_HANDLING)
-    add_c_compiler_flag_if_supported(OUR_FLAGS -DCONF_EXCEPTION_HANDLING)
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS -DCONF_EXCEPTION_HANDLING)
     # use the frame pointer (frame pointer usage is disabled by default in
     # some architectures like x86_64 and for some optimization levels; and it
     # may be impossible to walk the call stack without it)
-    add_c_compiler_flag_if_supported(OUR_FLAGS -fno-omit-frame-pointer)
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS -fno-omit-frame-pointer)
   endif()
 
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wall)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wall)
   if(CMAKE_VERSION VERSION_GREATER 3.3 OR CMAKE_VERSION VERSION_EQUAL 3.3)
-    add_c_compiler_flag_if_supported(OUR_FLAGS_OWN
+    add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN
       $<$<COMPILE_LANGUAGE:C>:-Wdeclaration-after-statement>
       -Wdeclaration-after-statement
     )
   endif()
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wextra)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-unused-parameter)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-missing-field-initializers)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wformat=2) # Warn about format strings.
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wextra)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-unused-parameter)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-missing-field-initializers)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wformat=2) # Warn about format strings.
   add_c_compiler_flag_if_supported(OUR_FLAGS_DEP -Wno-implicit-function-declaration)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-nullability-completeness) # Mac OS build on github
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wduplicated-cond)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wduplicated-branches)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wlogical-op)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wrestrict)
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wshadow-all) # clang
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wshadow=global) # gcc
-  add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wthread-safety)
-  # add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdouble-promotion) # Many occurences
-  # add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wnull-dereference) # Many occurences
-  # add_c_compiler_flag_if_supported(OUR_FLAGS_OWN -Wuseless-cast) # TODO: Enable for C++ code except gtest
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-nullability-completeness) # Mac OS build on github
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wduplicated-cond)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wduplicated-branches)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wlogical-op)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wrestrict)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wshadow-all) # clang
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wshadow=global) # gcc
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wthread-safety)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wthread-safety-negative)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wsuggest-override)
+  add_linker_flag_if_supported(OUR_FLAGS_LINK -Wno-alloc-size-larger-than) # save.cpp with LTO
+  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdouble-promotion) # Many occurences
+  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wnull-dereference) # Many occurences
+  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wuseless-cast) # TODO: Enable for C++ code except gtest
 endif()
 
 if(MSVC)
   if(EXCEPTION_HANDLING)
-  add_c_compiler_flag_if_supported(OUR_FLAGS /DCONF_EXCEPTION_HANDLING)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS /DCONF_EXCEPTION_HANDLING)
   endif()
 endif()
 
@@ -457,7 +545,7 @@ endif()
 find_package(Ogg)
 find_package(Opus)
 find_package(Opusfile)
-find_package(Pnglite)
+find_package(PNG)
 find_package(PythonInterp 3)
 find_package(SDL2)
 find_package(SQLite3)
@@ -543,7 +631,7 @@ show_dependency_status("Ogg" OGG)
 show_dependency_status("OpenSSL Crypto" CRYPTO)
 show_dependency_status("Opus" OPUS)
 show_dependency_status("Opusfile" OPUSFILE)
-show_dependency_status("Pnglite" PNGLITE)
+show_dependency_status("PNG" PNG)
 show_dependency_status("PythonInterp" PYTHONINTERP)
 show_dependency_status("SDL2" SDL2)
 show_dependency_status("SQLite3" SQLite3)
@@ -560,29 +648,29 @@ if(CLIENT AND VULKAN)
   show_dependency_status("Vulkan" VULKAN)
 endif()
 
-if(CLIENT AND NOT(CURL_FOUND))
-  message(SEND_ERROR "You must install Curl to compile DDNet")
+if(NOT(CURL_FOUND))
+  message(SEND_ERROR "You must install Curl to compile ${CMAKE_PROJECT_NAME}")
 endif()
 if(NOT(PYTHONINTERP_FOUND))
-  message(SEND_ERROR "You must install Python to compile DDNet")
+  message(SEND_ERROR "You must install Python to compile ${CMAKE_PROJECT_NAME}")
 endif()
 if(NOT(SQLite3_FOUND))
-  message(SEND_ERROR "You must install SQLite3 to compile DDNet")
+  message(SEND_ERROR "You must install SQLite3 to compile ${CMAKE_PROJECT_NAME}")
 endif()
 
 if(MYSQL AND NOT(MYSQL_FOUND))
-  message(SEND_ERROR "You must install MySQL to compile the DDNet server with MySQL support")
+  message(SEND_ERROR "You must install MySQL to compile the ${CMAKE_PROJECT_NAME} server with MySQL support")
 endif()
 
 if(WEBSOCKETS AND NOT(WEBSOCKETS_FOUND))
-  message(SEND_ERROR "You must install libwebsockets to compile the DDNet server with websocket support")
+  message(SEND_ERROR "You must install libwebsockets to compile the ${CMAKE_PROJECT_NAME} server with websocket support")
 endif()
 
 if(UPNP AND NOT(MINIUPNPC_FOUND))
-  message(SEND_ERROR "You must install miniupnpc to compile the DDNet server with UPnP support")
+  message(SEND_ERROR "You must install miniupnpc to compile the ${CMAKE_PROJECT_NAME} server with UPnP support")
 endif()
 if(DISCORD AND NOT(DISCORDSDK_FOUND))
-  message(SEND_ERROR "You must install the Discord SDK to compile the DDNet client with Discord support")
+  message(SEND_ERROR "You must install the Discord SDK to compile the ${CMAKE_PROJECT_NAME} client with Discord support")
 endif()
 if(DISCORD_DYNAMIC)
   if(TARGET_OS STREQUAL "windows" OR TARGET_OS STREQUAL "mac")
@@ -592,23 +680,26 @@ if(DISCORD_DYNAMIC)
     message(SEND_ERROR "You must enable the DISCORD flag if you want to link the Discord SDK")
   endif()
 endif()
+if(NOT(PNG_FOUND))
+  message(SEND_ERROR "You must install libpng to compile DDNet")
+endif()
 if(CLIENT AND NOT(FREETYPE_FOUND))
-  message(SEND_ERROR "You must install Freetype to compile the DDNet client")
+  message(SEND_ERROR "You must install Freetype to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(CLIENT AND NOT(OGG_FOUND))
-  message(SEND_ERROR "You must install Ogg to compile the DDNet client")
+  message(SEND_ERROR "You must install Ogg to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(CLIENT AND NOT(OPUS_FOUND))
-  message(SEND_ERROR "You must install Opus to compile the DDNet client")
+  message(SEND_ERROR "You must install Opus to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(CLIENT AND NOT(OPUSFILE_FOUND))
-  message(SEND_ERROR "You must install Opusfile to compile the DDNet client")
+  message(SEND_ERROR "You must install Opusfile to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(CLIENT AND NOT(SDL2_FOUND))
-  message(SEND_ERROR "You must install SDL2 to compile the DDNet client")
+  message(SEND_ERROR "You must install SDL2 to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(TARGET_OS STREQUAL "android" AND CLIENT AND NOT(CRYPTO_FOUND))
-  message(SEND_ERROR "You must install OpenSSL to compile the DDNet client")
+  message(SEND_ERROR "You must install OpenSSL to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 if(NOT(GTEST_FOUND))
   if(DOWNLOAD_GTEST)
@@ -624,21 +715,21 @@ if(NOT(GTEST_FOUND))
 endif()
 
 if(CLIENT AND VULKAN AND NOT(VULKAN_FOUND))
-  message(SEND_ERROR "You must install Vulkan libraries to compile the DDNet client")
+  message(SEND_ERROR "You must install Vulkan libraries to compile the ${CMAKE_PROJECT_NAME} client")
 endif()
 
 if(TARGET_OS STREQUAL "windows")
   set(PLATFORM_CLIENT)
   set(PLATFORM_CLIENT_LIBS opengl32 winmm)
-  set(PLATFORM_LIBS version ws2_32) # Windows sockets
+  set(PLATFORM_LIBS shlwapi version ws2_32) # Windows sockets
 elseif(TARGET_OS STREQUAL "mac")
   find_library(CARBON Carbon)
   find_library(COCOA Cocoa)
   find_library(OPENGL OpenGL)
   find_library(SECURITY Security)
   set(PLATFORM_CLIENT
+    src/macos/client.mm
     src/macos/notifications.mm
-    src/macoslaunch/client.m
   )
   set(PLATFORM_CLIENT_LIBS ${COCOA} ${OPENGL})
   set(PLATFORM_LIBS ${CARBON} ${SECURITY})
@@ -882,6 +973,7 @@ set(EXPECTED_DATA
   audio/wp_switch-01.wv
   audio/wp_switch-02.wv
   audio/wp_switch-03.wv
+  autoexec_server.cfg
   blob.png
   censorlist.txt
   console.png
@@ -1178,6 +1270,7 @@ set(EXPECTED_DATA
   editor/water.rules
   editor/winter_main.rules
   emoticons.png
+  extras.png
   file_icons.png
   fonts/DejaVuSans.ttf
   fonts/GlowSansJCompressed-Book.otf
@@ -1188,6 +1281,7 @@ set(EXPECTED_DATA
   gui_cursor.png
   gui_icons.png
   gui_logo.png
+  hud.png
   languages/arabic.txt
   languages/belarusian.txt
   languages/bosnian.txt
@@ -1198,6 +1292,7 @@ set(EXPECTED_DATA
   languages/czech.txt
   languages/danish.txt
   languages/dutch.txt
+  languages/esperanto.txt
   languages/finnish.txt
   languages/french.txt
   languages/german.txt
@@ -1279,6 +1374,7 @@ set(EXPECTED_DATA
   maps/Sunny\ Side\ Up.map
   maps/Tsunami.map
   maps/Tutorial.map
+  maps/coverage.map
   maps/ctf1.map
   maps/ctf2.map
   maps/ctf3.map
@@ -1457,7 +1553,7 @@ set(EXPECTED_DATA
   wordlist.txt
 )
 
-set_glob(DATA GLOB_RECURSE "frag;json;map;otf;png;rules;ttf;txt;vert;wv" data ${EXPECTED_DATA})
+set_glob(DATA GLOB_RECURSE "cfg;frag;json;map;otf;png;rules;ttf;txt;vert;wv" data ${EXPECTED_DATA})
 
 ########################################################################
 # COPY DATA AND SHARED LIBS
@@ -1469,10 +1565,18 @@ foreach(datafile ${DATA})
   file(MAKE_DIRECTORY ${DESTINATION})
   file(COPY ${datafile} DESTINATION ${DESTINATION})
 endforeach()
+set(INTEGRATION_TEST_COPY_FILES
+  lsan.supp
+  memcheck.supp
+  ubsan.supp
+  valgrind.supp
+  scripts/integration_test.sh
+)
 set(COPY_FILES
   ${CURL_COPY_FILES}
   ${FREETYPE_COPY_FILES}
   ${OPUSFILE_COPY_FILES}
+  ${PNG_COPY_FILES}
   ${SDL2_COPY_FILES}
   ${SQLite3_COPY_FILES}
   ${FFMPEG_COPY_FILES}
@@ -1480,6 +1584,7 @@ set(COPY_FILES
   ${DISCORDSDK_COPY_FILES}
   ${VULKAN_COPY_FILES}
   ${EXCEPTION_HANDLING_COPY_FILES}
+  ${INTEGRATION_TEST_COPY_FILES}
 )
 file(COPY ${COPY_FILES} DESTINATION .)
 
@@ -1594,20 +1699,20 @@ set_src(BASE GLOB_RECURSE src/base
   hash_ctxt.h
   hash_libtomcrypt.cpp
   hash_openssl.cpp
+  lock_scope.h
+  log.cpp
+  log.h
+  logger.h
   math.h
   system.cpp
   system.h
-  tl/algorithm.h
-  tl/allocator.h
-  tl/array.h
-  tl/base.h
-  tl/range.h
-  tl/sorted_array.h
-  tl/string.h
   tl/threading.h
+  types.h
   unicode/confusables.cpp
+  unicode/confusables.h
   unicode/confusables_data.h
   unicode/tolower.cpp
+  unicode/tolower.h
   unicode/tolower_data.h
   vmath.h
 )
@@ -1620,6 +1725,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   discord.h
   editor.h
   engine.h
+  favorites.h
   friends.h
   ghost.h
   graphics.h
@@ -1627,7 +1733,6 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   kernel.h
   keys.h
   map.h
-  masterserver.h
   message.h
   server.h
   serverbrowser.h
@@ -1664,10 +1769,10 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   filecollection.cpp
   filecollection.h
   global_uuid_manager.cpp
+  http.cpp
+  http.h
   huffman.cpp
   huffman.h
-  image_manipulation.cpp
-  image_manipulation.h
   jobs.cpp
   jobs.h
   json.cpp
@@ -1678,6 +1783,7 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   map.cpp
   map.h
   masterserver.cpp
+  masterserver.h
   memheap.cpp
   memheap.h
   netban.cpp
@@ -1689,6 +1795,7 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   network_console.cpp
   network_console_conn.cpp
   network_server.cpp
+  network_stun.cpp
   packer.cpp
   packer.h
   protocol.h
@@ -1702,6 +1809,8 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   snapshot.cpp
   snapshot.h
   storage.cpp
+  stun.cpp
+  stun.h
   teehistorian_ex.cpp
   teehistorian_ex.h
   teehistorian_ex_chunks.h
@@ -1711,6 +1820,12 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   video.h
   websockets.cpp
   websockets.h
+)
+set_src(ENGINE_GFX GLOB src/engine/gfx
+  image_loader.cpp
+  image_loader.h
+  image_manipulation.cpp
+  image_manipulation.h
 )
 set_src(GAME_SHARED GLOB src/game
   bezier.cpp
@@ -1767,15 +1882,12 @@ set(GAME_GENERATED_SHARED
   src/game/generated/protocol7.h
   src/game/generated/protocolglue.h
 )
-set(MASTERSRV_SHARED
-  src/mastersrv/mastersrv.cpp
-  src/mastersrv/mastersrv.h
-)
 set(DEPS ${DEP_JSON} ${DEP_MD5} ${ZLIB_DEP})
 
 # Libraries
 set(LIBS
   ${CRYPTO_LIBRARIES}
+  ${CURL_LIBRARIES}
   ${SQLite3_LIBRARIES}
   ${WEBSOCKETS_LIBRARIES}
   ${ZLIB_LIBRARIES}
@@ -1786,10 +1898,11 @@ set(LIBS
 )
 
 # Targets
+add_library(engine-gfx EXCLUDE_FROM_ALL OBJECT ${ENGINE_GFX})
+target_include_directories(engine-gfx PRIVATE ${PNG_INCLUDE_DIRS})
 add_library(engine-shared EXCLUDE_FROM_ALL OBJECT ${ENGINE_INTERFACE} ${ENGINE_SHARED} ${ENGINE_UUID_SHARED} ${BASE})
 add_library(game-shared EXCLUDE_FROM_ALL OBJECT ${GAME_SHARED} ${GAME_GENERATED_SHARED})
-add_library(mastersrv-shared EXCLUDE_FROM_ALL OBJECT ${MASTERSRV_SHARED})
-list(APPEND TARGETS_OWN engine-shared game-shared mastersrv-shared)
+list(APPEND TARGETS_OWN engine-gfx engine-shared game-shared)
 
 if(DISCORD AND NOT DISCORD_DYNAMIC)
   add_library(discord-shared SHARED IMPORTED)
@@ -1835,7 +1948,6 @@ if(CLIENT)
     backend/opengl/opengl_sl_program.cpp
     backend/opengl/opengl_sl_program.h
     backend/opengles/backend_opengles.cpp
-    backend/opengles/backend_opengles.h
     backend/opengles/backend_opengles3.cpp
     backend/opengles/backend_opengles3.h
     backend/opengles/gles_class_defines.h
@@ -1853,6 +1965,7 @@ if(CLIENT)
     demoedit.cpp
     demoedit.h
     discord.cpp
+    favorites.cpp
     friends.cpp
     friends.h
     ghost.cpp
@@ -1860,8 +1973,6 @@ if(CLIENT)
     graphics_defines.h
     graphics_threaded.cpp
     graphics_threaded.h
-    http.cpp
-    http.h
     input.cpp
     input.h
     keynames.h
@@ -1914,6 +2025,8 @@ if(CLIENT)
     components/emoticon.h
     components/flow.cpp
     components/flow.h
+    components/freezebars.cpp
+    components/freezebars.h
     components/ghost.cpp
     components/ghost.h
     components/hud.cpp
@@ -1988,8 +2101,8 @@ if(CLIENT)
     skin.h
     ui.cpp
     ui.h
-    ui_ex.cpp
-    ui_ex.h
+    ui_rect.cpp
+    ui_rect.h
   )
   set_src(GAME_EDITOR GLOB src/game/editor
     auto_map.cpp
@@ -2013,15 +2126,14 @@ if(CLIENT)
   )
   set(CLIENT_SRC ${ENGINE_CLIENT} ${PLATFORM_CLIENT} ${GAME_CLIENT} ${GAME_EDITOR} ${GAME_GENERATED_CLIENT})
 
-  set(DEPS_CLIENT ${DEPS} ${GLEW_DEP} ${PNGLITE_DEP} ${WAVPACK_DEP})
+  set(DEPS_CLIENT ${DEPS} ${GLEW_DEP} ${WAVPACK_DEP})
 
   # Libraries
   set(LIBS_CLIENT
     ${LIBS}
-    ${CURL_LIBRARIES}
     ${FREETYPE_LIBRARIES}
     ${GLEW_LIBRARIES}
-    ${PNGLITE_LIBRARIES}
+    ${PNG_LIBRARIES}
     ${SDL2_LIBRARIES}
     ${WAVPACK_LIBRARIES}
     ${FFMPEG_LIBRARIES}
@@ -2072,9 +2184,9 @@ if(CLIENT)
       ${CLIENT_ICON}
       ${CLIENT_MANIFEST}
       ${DEPS_CLIENT}
+      $<TARGET_OBJECTS:engine-gfx>
       $<TARGET_OBJECTS:engine-shared>
       $<TARGET_OBJECTS:game-shared>
-      $<TARGET_OBJECTS:mastersrv-shared>
     )
   else()
     add_executable(${TARGET_CLIENT} WIN32
@@ -2082,9 +2194,9 @@ if(CLIENT)
       ${CLIENT_ICON}
       ${CLIENT_MANIFEST}
       ${DEPS_CLIENT}
+      $<TARGET_OBJECTS:engine-gfx>
       $<TARGET_OBJECTS:engine-shared>
       $<TARGET_OBJECTS:game-shared>
-      $<TARGET_OBJECTS:mastersrv-shared>
     )
   endif()
   target_link_libraries(${TARGET_CLIENT} ${LIBS_CLIENT})
@@ -2094,13 +2206,12 @@ if(CLIENT)
   endif()
 
   target_include_directories(${TARGET_CLIENT} SYSTEM PRIVATE
-    ${CURL_INCLUDE_DIRS}
     ${FREETYPE_INCLUDE_DIRS}
     ${GLEW_INCLUDE_DIRS}
     ${OGG_INCLUDE_DIRS}
     ${OPUSFILE_INCLUDE_DIRS}
     ${OPUS_INCLUDE_DIRS}
-    ${PNGLITE_INCLUDE_DIRS}
+    ${PNG_INCLUDE_DIRS}
     ${SDL2_INCLUDE_DIRS}
     ${WAVPACK_INCLUDE_DIRS}
     ${FFMPEG_INCLUDE_DIRS}
@@ -2133,15 +2244,15 @@ if(CLIENT)
   endif()
 
   if(WAVPACK_CLOSE_FILE)
-	  target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_WAVPACK_CLOSE_FILE)
+    target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_WAVPACK_CLOSE_FILE)
   endif()
 
   if(GLEW_BUNDLED)
-	  target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_GLEW_HAS_CONTEXT_INIT)
+    target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_GLEW_HAS_CONTEXT_INIT)
   endif()
 
   if(VULKAN)
-	  target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_BACKEND_VULKAN)
+    target_compile_definitions(${TARGET_CLIENT} PRIVATE CONF_BACKEND_VULKAN)
   endif()
 
   list(APPEND TARGETS_OWN ${TARGET_CLIENT})
@@ -2172,12 +2283,15 @@ if(SERVER)
     databases/connection_pool.h
     databases/mysql.cpp
     databases/sqlite.cpp
+    main.cpp
     name_ban.cpp
     name_ban.h
     register.cpp
     register.h
     server.cpp
     server.h
+    server_logger.cpp
+    server_logger.h
     sql_string_helpers.cpp
     sql_string_helpers.h
     upnp.cpp
@@ -2193,8 +2307,8 @@ if(SERVER)
     entities/door.h
     entities/dragger.cpp
     entities/dragger.h
-    entities/flag.cpp
-    entities/flag.h
+    entities/dragger_beam.cpp
+    entities/dragger_beam.h
     entities/gun.cpp
     entities/gun.h
     entities/laser.cpp
@@ -2272,14 +2386,14 @@ if(SERVER)
     ${SERVER_ICON}
     $<TARGET_OBJECTS:engine-shared>
     $<TARGET_OBJECTS:game-shared>
-    $<TARGET_OBJECTS:mastersrv-shared>
   )
   target_link_libraries(${TARGET_SERVER} ${LIBS_SERVER})
+  target_include_directories(${TARGET_SERVER} PRIVATE ${PNG_INCLUDE_DIRS})
   list(APPEND TARGETS_OWN ${TARGET_SERVER})
   list(APPEND TARGETS_LINK ${TARGET_SERVER})
 
   if(TARGET_OS AND TARGET_OS STREQUAL "mac")
-    set(SERVER_LAUNCHER_SRC src/macoslaunch/server.mm)
+    set(SERVER_LAUNCHER_SRC src/macos/server.mm)
     set(TARGET_SERVER_LAUNCHER ${TARGET_SERVER}-Launcher)
     add_executable(${TARGET_SERVER_LAUNCHER} ${SERVER_LAUNCHER_SRC})
     target_link_libraries(${TARGET_SERVER_LAUNCHER} ${COCOA})
@@ -2293,22 +2407,6 @@ endif()
 ########################################################################
 
 if(TOOLS)
-  set(MASTERSRV_SRC src/mastersrv/main_mastersrv.cpp)
-  set_src(TWPING_SRC GLOB src/twping twping.cpp)
-
-  set(TARGET_MASTERSRV mastersrv)
-  set(TARGET_TWPING twping)
-
-  add_executable(${TARGET_MASTERSRV} EXCLUDE_FROM_ALL ${MASTERSRV_SRC} $<TARGET_OBJECTS:engine-shared> $<TARGET_OBJECTS:mastersrv-shared> ${DEPS})
-
-  add_executable(${TARGET_TWPING} EXCLUDE_FROM_ALL ${TWPING_SRC} $<TARGET_OBJECTS:engine-shared> $<TARGET_OBJECTS:mastersrv-shared> ${DEPS})
-
-  target_link_libraries(${TARGET_MASTERSRV} ${LIBS})
-  target_link_libraries(${TARGET_TWPING} ${LIBS})
-
-  list(APPEND TARGETS_OWN ${TARGET_MASTERSRV} ${TARGET_TWPING})
-  list(APPEND TARGETS_LINK ${TARGET_MASTERSRV} ${TARGET_TWPING})
-
   set(TARGETS_TOOLS)
   set_src(TOOLS_SRC GLOB src/tools
     config_common.h
@@ -2317,14 +2415,16 @@ if(TOOLS)
     crapnet.cpp
     dilate.cpp
     dummy_map.cpp
-    fake_server.cpp
     map_convert_07.cpp
     map_diff.cpp
     map_extract.cpp
     map_optimize.cpp
+    map_replace_area.cpp
     map_replace_image.cpp
     map_resave.cpp
     packetgen.cpp
+    stun.cpp
+    twping.cpp
     unicode_confusables.cpp
     uuid.cpp
   )
@@ -2335,15 +2435,12 @@ if(TOOLS)
       set(TOOL_DEPS ${DEPS})
       set(TOOL_LIBS ${LIBS})
       if(TOOL MATCHES "^(dilate|map_convert_07|map_optimize|map_extract|map_replace_image)$")
-        list(APPEND TOOL_DEPS ${PNGLITE_DEP})
-        list(APPEND TOOL_LIBS ${PNGLITE_LIBRARIES})
-        list(APPEND TOOL_INCLUDE_DIRS ${PNGLITE_INCLUDE_DIRS})
+        list(APPEND TOOL_INCLUDE_DIRS ${PNG_INCLUDE_DIRS})
+	list(APPEND TOOL_DEPS $<TARGET_OBJECTS:engine-gfx>)
+        list(APPEND TOOL_LIBS ${PNG_LIBRARIES})
       endif()
       if(TOOL MATCHES "^config_")
         list(APPEND EXTRA_TOOL_SRC "src/tools/config_common.h")
-      endif()
-      if(TOOL MATCHES "^fake_server")
-          list(APPEND TOOL_DEPS $<TARGET_OBJECTS:mastersrv-shared>)
       endif()
       set(EXCLUDE_FROM_ALL)
       if(DEV)
@@ -2428,7 +2525,6 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
     secure_random.cpp
     serverbrowser.cpp
     serverinfo.cpp
-    sorted_array.cpp
     str.cpp
     strip_path_and_extension.cpp
     teehistorian.cpp
@@ -2441,8 +2537,6 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
   set(TESTS_EXTRA
     src/engine/client/blocklist_driver.cpp
     src/engine/client/blocklist_driver.h
-    src/engine/client/http.cpp
-    src/engine/client/http.h
     src/engine/client/serverbrowser.cpp
     src/engine/client/serverbrowser.h
     src/engine/client/serverbrowser_http.cpp
@@ -2468,24 +2562,31 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
   add_executable(${TARGET_TESTRUNNER} EXCLUDE_FROM_ALL
     ${TESTS}
     ${TESTS_EXTRA}
+    $<TARGET_OBJECTS:engine-gfx>
     $<TARGET_OBJECTS:engine-shared>
     $<TARGET_OBJECTS:game-shared>
-    $<TARGET_OBJECTS:mastersrv-shared>
     ${DEPS}
   )
-  target_link_libraries(${TARGET_TESTRUNNER} ${LIBS} ${CURL_LIBRARIES} ${MYSQL_LIBRARIES} ${GTEST_LIBRARIES})
-  target_include_directories(${TARGET_TESTRUNNER} SYSTEM PRIVATE ${CURL_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+  target_link_libraries(${TARGET_TESTRUNNER} ${LIBS} ${MYSQL_LIBRARIES} ${PNG_LIBRARIES} ${GTEST_LIBRARIES})
+  target_include_directories(${TARGET_TESTRUNNER} SYSTEM PRIVATE ${GTEST_INCLUDE_DIRS})
 
   list(APPEND TARGETS_OWN ${TARGET_TESTRUNNER})
   list(APPEND TARGETS_LINK ${TARGET_TESTRUNNER})
 
   add_custom_target(run_tests
     COMMAND $<TARGET_FILE:${TARGET_TESTRUNNER}> ${TESTRUNNER_ARGS}
-    COMMENT Running tests
+    COMMENT Running unit tests
     DEPENDS ${TARGET_TESTRUNNER}
     USES_TERMINAL
   )
 endif()
+
+add_custom_target(run_integration_tests
+  COMMAND ${PROJECT_BINARY_DIR}/integration_test.sh ${INTEGRATIONTESTRUNNER_ARGS}
+  COMMENT Running integration tests
+  DEPENDS ${TARGET_CLIENT} ${TARGET_SERVER}
+  USES_TERMINAL
+)
 
 ########################################################################
 # INSTALLATION
@@ -2612,10 +2713,14 @@ set(CPACK_SOURCE_FILES
   datasrc/
   ddnet-libs/
   license.txt
+  lsan.supp
+  memcheck.supp
   other/
   scripts/
   src/
   storage.cfg
+  ubsan.supp
+  valgrind.supp
 )
 set(CPACK_SOURCE_IGNORE_FILES
   "\\\\.pyc$"
@@ -2735,11 +2840,6 @@ if(CLIENT AND DMGBUILD)
     list(APPEND DMG_MKDIR_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory ${DMG_TMPDIR}/${dir})
   endforeach()
 
-  set(DMG_DISCORD_COPY_COMMAND)
-  if(FAT OR NOT TARGET_CPU_ARCHITECTURE STREQUAL "arm64")
-    set(DMG_DISCORD_COPY_COMMAND COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/discord/${LIB_DIR}/discord_game_sdk.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/)
-  endif()
-
   set(TARGET_TOOLS_FILES)
   foreach(target ${TARGET_TOOLS})
     list(APPEND TARGET_TOOLS_FILES $<TARGET_FILE:${target}>)
@@ -2755,7 +2855,7 @@ if(CLIENT AND DMGBUILD)
     COMMAND ${CMAKE_COMMAND} -E copy bundle/client/Info.plist ${PROJECT_SOURCE_DIR}/other/bundle/client/PkgInfo ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${TARGET_CLIENT}> ${TARGET_TOOLS_FILES} ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/MacOS/
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/ddnet-libs/sdl/${LIB_DIR}/SDL2.framework ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/SDL2.framework
-    ${DMG_DISCORD_COPY_COMMAND}
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/discord/${LIB_DIR}/discord_game_sdk.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/freetype/${LIB_DIR}/libfreetype.6.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/ffmpeg/${LIB_DIR}/libavcodec.59.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/ffmpeg/${LIB_DIR}/libavformat.59.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
@@ -2884,7 +2984,7 @@ source_group_tree(src)
 
 if(ANTIBOT)
   # Allow the antibot library to use functions from the server binary.
-  add_c_compiler_flag_if_supported(OUR_FLAGS_LINK -rdynamic)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_LINK -rdynamic)
   set_own_rpath(${TARGET_SERVER})
 endif()
 
@@ -2912,6 +3012,9 @@ foreach(target ${TARGETS})
       target_compile_definitions(${target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:_FORTIFY_SOURCE=2>) # Detect some buffer overflows.
     endif()
   endif()
+  if(ENABLE_IPO)
+    set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
 endforeach()
 
 foreach(target ${TARGETS_LINK})
@@ -2934,6 +3037,7 @@ foreach(target ${TARGETS_OWN})
   if((CMAKE_VERSION VERSION_GREATER 3.1 OR CMAKE_VERSION VERSION_EQUAL 3.1))
     set_property(TARGET ${target} PROPERTY CXX_STANDARD 17)
     set_property(TARGET ${target} PROPERTY CXX_STANDARD_REQUIRED ON)
+    set_property(TARGET ${target} PROPERTY CXX_EXTENSIONS OFF)
   endif()
 
   if(MSVC)
@@ -2942,6 +3046,7 @@ foreach(target ${TARGETS_OWN})
     target_compile_options(${target} PRIVATE /wd4800) # Implicit conversion of int to bool.
   endif()
   if(TARGET_OS STREQUAL "windows")
+    target_compile_definitions(${target} PRIVATE NOMINMAX) # windows.h shouldn't define min/max macros
     target_compile_definitions(${target} PRIVATE UNICODE) # Windows headers
     target_compile_definitions(${target} PRIVATE _UNICODE) # C-runtime
   endif()
@@ -2951,7 +3056,7 @@ foreach(target ${TARGETS_OWN})
   target_include_directories(${target} PRIVATE ${PROJECT_BINARY_DIR}/src)
   target_include_directories(${target} PRIVATE src)
   target_compile_definitions(${target} PRIVATE $<$<CONFIG:Debug>:CONF_DEBUG>)
-  target_include_directories(${target} SYSTEM PRIVATE ${SQLite3_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
+  target_include_directories(${target} SYSTEM PRIVATE ${CURL_INCLUDE_DIRS} ${SQLite3_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
   target_compile_definitions(${target} PRIVATE GLEW_STATIC)
   if(CRYPTO_FOUND)
     target_compile_definitions(${target} PRIVATE CONF_OPENSSL)

@@ -2,6 +2,10 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "layers.h"
 
+#include "mapitems.h"
+
+#include <engine/map.h>
+
 CLayers::CLayers()
 {
 	m_GroupsNum = 0;

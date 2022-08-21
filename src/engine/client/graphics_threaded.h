@@ -7,8 +7,8 @@
 #include <cstddef>
 #include <vector>
 
-#define CMD_BUFFER_DATA_BUFFER_SIZE 1024 * 1024 * 2
-#define CMD_BUFFER_CMD_BUFFER_SIZE 1024 * 256
+constexpr int CMD_BUFFER_DATA_BUFFER_SIZE = 1024 * 1024 * 2;
+constexpr int CMD_BUFFER_CMD_BUFFER_SIZE = 1024 * 256;
 
 class CCommandBuffer
 {
@@ -175,8 +175,8 @@ public:
 		WRAP_CLAMP,
 	};
 
-	typedef GL_SPoint SPoint;
-	typedef GL_STexCoord STexCoord;
+	typedef vec2 SPoint;
+	typedef vec2 STexCoord;
 	typedef GL_SColorf SColorf;
 	typedef GL_SColor SColor;
 	typedef GL_SVertex SVertex;
@@ -301,8 +301,8 @@ public:
 		int m_WriteBufferIndex;
 		int m_ReadBufferIndex;
 
-		size_t m_pReadOffset;
-		size_t m_pWriteOffset;
+		size_t m_ReadOffset;
+		size_t m_WriteOffset;
 		size_t m_CopySize;
 	};
 
@@ -384,8 +384,8 @@ public:
 		unsigned int m_DrawNum;
 		int m_BufferContainerIndex;
 
-		float m_Offset[2];
-		float m_Dir[2];
+		vec2 m_Offset;
+		vec2 m_Dir;
 		int m_JumpIndex;
 	};
 
@@ -400,8 +400,8 @@ public:
 		unsigned int m_DrawNum;
 		int m_BufferContainerIndex;
 
-		float m_Offset[2];
-		float m_Dir[2];
+		vec2 m_Offset;
+		vec2 m_Dir;
 	};
 
 	struct SCommand_RenderQuadLayer : public SCommand
@@ -429,8 +429,8 @@ public:
 		int m_TextOutlineTextureIndex;
 
 		int m_DrawNum;
-		float m_aTextColor[4];
-		float m_aTextOutlineColor[4];
+		ColorRGBA m_TextColor;
+		ColorRGBA m_TextOutlineColor;
 	};
 
 	struct SCommand_RenderQuadContainer : public SCommand
@@ -716,7 +716,7 @@ public:
 
 	virtual ~IGraphicsBackend() {}
 
-	virtual int Init(const char *pName, int *Screen, int *pWidth, int *pHeight, int *pRefreshRate, int FsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, class IStorage *pStorage) = 0;
+	virtual int Init(const char *pName, int *pScreen, int *pWidth, int *pHeight, int *pRefreshRate, int *pFsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, class IStorage *pStorage) = 0;
 	virtual int Shutdown() = 0;
 
 	virtual uint64_t TextureMemoryUsage() const = 0;
@@ -818,13 +818,15 @@ class CGraphics_Threaded : public IEngineGraphics
 
 	CTextureHandle m_InvalidTexture;
 
-	std::vector<int> m_TextureIndices;
+	std::vector<int> m_vTextureIndices;
 	int m_FirstFreeTexture;
 	int m_TextureMemoryUsage;
 
-	std::vector<uint8_t> m_SpriteHelper;
+	std::vector<uint8_t> m_vSpriteHelper;
 
-	std::vector<SWarning> m_Warnings;
+	bool m_WarnPngliteIncompatibleImages = false;
+
+	std::vector<SWarning> m_vWarnings;
 
 	// is a non full windowed (in a sense that the viewport won't include the whole window),
 	// forced viewport, so that it justifies our UI ratio needs
@@ -839,17 +841,17 @@ class CGraphics_Threaded : public IEngineGraphics
 
 		int m_FreeIndex;
 	};
-	std::vector<SVertexArrayInfo> m_VertexArrayInfo;
+	std::vector<SVertexArrayInfo> m_vVertexArrayInfo;
 	int m_FirstFreeVertexArrayInfo;
 
-	std::vector<int> m_BufferObjectIndices;
+	std::vector<int> m_vBufferObjectIndices;
 	int m_FirstFreeBufferObjectIndex;
 
 	struct SQuadContainer
 	{
 		SQuadContainer(bool AutomaticUpload = true)
 		{
-			m_Quads.clear();
+			m_vQuads.clear();
 			m_QuadBufferObjectIndex = m_QuadBufferContainerIndex = -1;
 			m_FreeIndex = -1;
 
@@ -861,7 +863,7 @@ class CGraphics_Threaded : public IEngineGraphics
 			CCommandBuffer::SVertex m_aVertices[4];
 		};
 
-		std::vector<SQuad> m_Quads;
+		std::vector<SQuad> m_vQuads;
 
 		int m_QuadBufferObjectIndex;
 		int m_QuadBufferContainerIndex;
@@ -870,7 +872,7 @@ class CGraphics_Threaded : public IEngineGraphics
 
 		bool m_AutomaticUpload;
 	};
-	std::vector<SQuadContainer> m_QuadContainers;
+	std::vector<SQuadContainer> m_vQuadContainers;
 	int m_FirstFreeQuadContainer;
 
 	struct SWindowResizeListener
@@ -880,7 +882,7 @@ class CGraphics_Threaded : public IEngineGraphics
 		WINDOW_RESIZE_FUNC m_pFunc;
 		void *m_pUser;
 	};
-	std::vector<SWindowResizeListener> m_ResizeListeners;
+	std::vector<SWindowResizeListener> m_vResizeListeners;
 
 	void *AllocCommandBufferData(unsigned AllocSize);
 
@@ -1008,16 +1010,13 @@ public:
 	void SetColor(TName *pVertex, int ColorIndex)
 	{
 		TName *pVert = pVertex;
-		pVert->m_Color.r = m_aColor[ColorIndex].r;
-		pVert->m_Color.g = m_aColor[ColorIndex].g;
-		pVert->m_Color.b = m_aColor[ColorIndex].b;
-		pVert->m_Color.a = m_aColor[ColorIndex].a;
+		pVert->m_Color = m_aColor[ColorIndex];
 	}
 
 	void SetColorVertex(const CColorVertex *pArray, int Num) override;
 	void SetColor(float r, float g, float b, float a) override;
-	void SetColor(ColorRGBA rgb) override;
-	void SetColor4(vec4 TopLeft, vec4 TopRight, vec4 BottomLeft, vec4 BottomRight) override;
+	void SetColor(ColorRGBA Color) override;
+	void SetColor4(ColorRGBA TopLeft, ColorRGBA TopRight, ColorRGBA BottomLeft, ColorRGBA BottomRight) override;
 
 	// go through all vertices and change their color (only works for quads)
 	void ChangeColorOfCurrentQuadVertices(float r, float g, float b, float a) override;
@@ -1128,6 +1127,13 @@ public:
 	void QuadsDrawFreeform(const CFreeformItem *pArray, int Num) override;
 	void QuadsText(float x, float y, float Size, const char *pText) override;
 
+	void DrawRectExt(float x, float y, float w, float h, float r, int Corners) override;
+	void DrawRectExt4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, float r, int Corners) override;
+	int CreateRectQuadContainer(float x, float y, float w, float h, float r, int Corners) override;
+	void DrawRect(float x, float y, float w, float h, ColorRGBA Color, int Corners, float Rounding) override;
+	void DrawRect4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, int Corners, float Rounding) override;
+	void DrawCircle(float CenterX, float CenterY, float Radius, int Segments) override;
+
 	const GL_STexCoord *GetCurTextureCoordinates() override
 	{
 		return m_aTexture;
@@ -1230,11 +1236,11 @@ public:
 	void FlushVertices(bool KeepVertices = false) override;
 	void FlushVerticesTex3D() override;
 
-	void RenderTileLayer(int BufferContainerIndex, float *pColor, char **pOffsets, unsigned int *IndicedVertexDrawNum, size_t NumIndicesOffset) override;
-	void RenderBorderTiles(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, int JumpIndex, unsigned int DrawNum) override;
-	void RenderBorderTileLines(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, unsigned int IndexDrawNum, unsigned int RedrawNum) override;
+	void RenderTileLayer(int BufferContainerIndex, const ColorRGBA &Color, char **pOffsets, unsigned int *pIndicedVertexDrawNum, size_t NumIndicesOffset) override;
+	void RenderBorderTiles(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, int JumpIndex, unsigned int DrawNum) override;
+	void RenderBorderTileLines(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, unsigned int IndexDrawNum, unsigned int RedrawNum) override;
 	void RenderQuadLayer(int BufferContainerIndex, SQuadRenderInfo *pQuadInfo, int QuadNum, int QuadOffset) override;
-	void RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, float *pTextColor, float *pTextoutlineColor) override;
+	void RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, const ColorRGBA &TextColor, const ColorRGBA &TextOutlineColor) override;
 
 	// modern GL functions
 	int CreateBufferObject(size_t UploadDataSize, void *pUploadData, int CreateFlags, bool IsMovedPointer = false) override;
@@ -1252,6 +1258,7 @@ public:
 	int GetNumScreens() const override;
 	void Minimize() override;
 	void Maximize() override;
+	void WarnPngliteIncompatibleImages(bool Warn) override;
 	void SetWindowParams(int FullscreenMode, bool IsBorderless, bool AllowResizing) override;
 	bool SetWindowScreen(int Index) override;
 	void Move(int x, int y) override;

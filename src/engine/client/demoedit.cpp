@@ -1,12 +1,14 @@
 #include "demoedit.h"
+
 #include <engine/shared/demo.h>
+#include <engine/storage.h>
 
 CDemoEdit::CDemoEdit(const char *pNetVersion, class CSnapshotDelta *pSnapshotDelta, IStorage *pStorage, const char *pDemo, const char *pDst, int StartTick, int EndTick) :
 	m_SnapshotDelta(*pSnapshotDelta),
 	m_pStorage(pStorage)
 {
-	str_copy(m_aDemo, pDemo, sizeof(m_aDemo));
-	str_copy(m_aDst, pDst, sizeof(m_aDst));
+	str_copy(m_aDemo, pDemo);
+	str_copy(m_aDst, pDst);
 
 	m_StartTick = StartTick;
 	m_EndTick = EndTick;

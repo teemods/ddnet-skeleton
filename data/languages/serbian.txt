@@ -241,9 +241,6 @@ MOTD
 Map
 == Mapa
 
-Mouse sens.
-== Mouse sens.
-
 Move left
 == Levo
 
@@ -644,16 +641,52 @@ The width of texture %s is not divisible by %d, or the height is not divisible b
 The format of texture %s is not RGBA which will cause visual bugs.
 == 
 
+Preparing demo playback
+== 
+
+Connected
+== 
+
+Loading map file from storage
+== 
+
+Why are you slowmo replaying to read this?
+== 
+
+Initializing components
+== 
+
+Initializing assets
+== 
+
+Initializing map logic
+== 
+
+Sending initial client info
+== 
+
 Warning
 == 
 
 Debug mode enabled. Press Ctrl+Shift+D to disable debug mode.
 == 
 
+Position:
+== 
+
+Speed:
+== 
+
+Angle:
+== 
+
 Server best:
 == 
 
 Personal best:
+== 
+
+Uploading map data to GPU
 == 
 
 Reset
@@ -663,6 +696,24 @@ Browser
 == 
 
 Ghost
+== 
+
+Trying to determine UDP connectivity...
+== 
+
+UDP seems to be filtered.
+== 
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== 
+
+No answer from server yet.
+== 
+
+Getting game info
+== 
+
+Requesting to join the game
 == 
 
 Reconnect in %d sec
@@ -726,6 +777,9 @@ transmits your player name to info2.ddnet.tw
 == 
 
 Theme
+== 
+
+Loading menu images
 == 
 
 AFR
@@ -800,6 +854,9 @@ Please use a different name
 Remove chat
 == 
 
+Loading demo files
+== 
+
 Markers:
 == 
 
@@ -842,6 +899,9 @@ Kill
 Pause
 == 
 
+Loading ghost files
+== 
+
 Time
 == 
 
@@ -863,25 +923,10 @@ Smooth Dynamic Camera
 Switch weapon when out of ammo
 == 
 
-Reset wanted weapon on death
-== 
-
-Show only chat messages from friends
-== 
-
-Show clan above name plates
-== 
-
-Clan plates size
-== 
-
 Skip the main menu
 == 
 
 Refresh Rate
-== 
-
-Show console window
 == 
 
 Settings file
@@ -911,6 +956,9 @@ Toggle to edit your dummy settings
 Download skins
 == 
 
+Download community skins
+== 
+
 Vanilla skins only
 == 
 
@@ -927,6 +975,9 @@ Skin Database
 == 
 
 Skins directory
+== 
+
+Loading skin files
 == 
 
 Hook collisions
@@ -980,7 +1031,60 @@ Show HUD
 Chat command
 == 
 
-UI mouse s.
+Enable controller
+== 
+
+Controller %d: %s
+== 
+
+Click to cycle through all available controllers.
+== 
+
+[Ingame controller mode]
+Relative
+== 
+
+[Ingame controller mode]
+Absolute
+== 
+
+Ingame controller mode
+== 
+
+Ingame controller sens.
+== 
+
+UI controller sens.
+== 
+
+Controller jitter tolerance
+== 
+
+No controller found. Plug in a controller and restart the game.
+== 
+
+Device
+== 
+
+Status
+== 
+
+Aim bind
+== 
+
+Controller Axis #%d
+== 
+
+Mouse
+== 
+
+Ingame mouse sens.
+== 
+
+UI mouse sens.
+== 
+
+Controller
 == 
 
 Dummy
@@ -1061,7 +1165,7 @@ Map sound volume
 Background music volume
 == 
 
-HUD
+Appearance
 == 
 
 DDNet
@@ -1073,55 +1177,67 @@ Assets
 DDNet Client needs to be restarted to complete update!
 == 
 
-Use DDRace Scoreboard
+HUD
 == 
 
-Show client IDs
+Name Plate
 == 
 
-Show score
-== 
-
-Show health + ammo
-== 
-
-Show names in chat in team colors
-== 
-
-Show votes window after voting
-== 
-
-Show kill messages
+Hook Collisions
 == 
 
 Kill Messages
 == 
 
-Kill Message Normal Color
+Show health, shields and ammo
 == 
 
-Kill Message Highlight Color
+Show kill messages
 == 
 
-Laser Outline Color
+Show score
 == 
 
-Laser Inner Color
+Show votes window after voting
 == 
 
-Hookline
+DDRace HUD
 == 
 
-Size
+Use DDRace Scoreboard
 == 
 
-No hit
+Show client IDs in scoreboard
 == 
 
-Hookable
+Show DDRace HUD
 == 
 
-Tee
+Show jumps indicator
+== 
+
+Show dummy actions
+== 
+
+Show player position
+== 
+
+Show player speed
+== 
+
+Show player target angle
+== 
+
+Show freeze bars
+== 
+
+Opacity of freeze bars inside freeze
+== 
+
+Show names in chat in team colors
+== 
+
+Show only chat messages from friends
 == 
 
 Use old chat style
@@ -1151,6 +1267,60 @@ Client message
 Preview
 == 
 
+Show clan above name plates
+== 
+
+Clan plates size
+== 
+
+Show hook strength indicator
+== 
+
+Show other players' key presses
+== 
+
+Show local player's key presses
+== 
+
+Hook collision line
+== 
+
+Show other players' hook collision lines
+== 
+
+Hook collision line width
+== 
+
+Hook collision line opacity
+== 
+
+Colors of the hook collision line, in case of a possible collision with:
+== 
+
+Your movements are not taken into account when calculating the line colors
+== 
+
+Nothing hookable
+== 
+
+Something hookable
+== 
+
+A Tee
+== 
+
+Normal Color
+== 
+
+Highlight Color
+== 
+
+Laser Outline Color
+== 
+
+Laser Inner Color
+== 
+
 Save the best demo of each race
 == 
 
@@ -1175,10 +1345,16 @@ Gameplay
 Overlay entities
 == 
 
+Size
+== 
+
 Show text entities
 == 
 
 Opacity
+== 
+
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
 == 
 
 Show others (own team only)
@@ -1203,15 +1379,6 @@ AntiPing: predict weapons
 == 
 
 AntiPing: predict grenade paths
-== 
-
-Show other players' hook collision lines
-== 
-
-Show other players' key presses
-== 
-
-Show local player's key presses
 == 
 
 Old mouse mode
@@ -1271,6 +1438,12 @@ Emoticons
 Particles
 == 
 
+Extras
+== 
+
+Loading assets
+== 
+
 Assets directory
 == 
 
@@ -1323,6 +1496,9 @@ Update failed! Check log...
 Restart
 == 
 
+Loading race demo files
+== 
+
 Super
 == 
 
@@ -1339,6 +1515,9 @@ Auto
 == 
 
 Replay
+== 
+
+Loading sound files
 == 
 
 Follow

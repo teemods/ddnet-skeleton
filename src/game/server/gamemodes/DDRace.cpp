@@ -8,6 +8,7 @@
 #include <game/server/entities/character.h>
 #include <game/server/gamecontext.h>
 #include <game/server/player.h>
+#include <game/server/score.h>
 #include <game/version.h>
 
 #define GAME_TYPE_NAME "DDraceNetwork"
@@ -39,7 +40,7 @@ void CGameControllerDDRace::OnCharacterSpawn(CCharacter *pChr)
 void CGameControllerDDRace::HandleCharacterTiles(CCharacter *pChr, int MapIndex)
 {
 	CPlayer *pPlayer = pChr->GetPlayer();
-	int ClientID = pPlayer->GetCID();
+	const int ClientID = pPlayer->GetCID();
 
 	int m_TileIndex = GameServer()->Collision()->GetTileIndex(MapIndex);
 	int m_TileFIndex = GameServer()->Collision()->GetFTileIndex(MapIndex);
@@ -88,7 +89,12 @@ void CGameControllerDDRace::HandleCharacterTiles(CCharacter *pChr, int MapIndex)
 		}
 
 		m_Teams.OnCharacterStart(ClientID);
-		pChr->m_CpActive = -2;
+		pChr->m_LastTimeCp = -1;
+		pChr->m_LastTimeCpBroadcasted = -1;
+		for(float &CurrentTimeCp : pChr->m_aCurrentTimeCp)
+		{
+			CurrentTimeCp = 0.0f;
+		}
 	}
 
 	// finish

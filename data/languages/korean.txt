@@ -7,6 +7,10 @@
 # 2022-03-23 CHaBek
 # 2022-03-28 CHaBek
 # 2022-04-21 CHaBek
+# 2022-05-16 CHaBek
+# 2022-06-17 CHaBek
+# 2022-07-05 CHaBek
+# 2022-08-17 CHaBek
 ##### /authors #####
 
 ##### translated strings #####
@@ -239,9 +243,6 @@ MOTD
 Map
 == 맵
 
-Mouse sens.
-== 마우스 감도
-
 Move left
 == 왼쪽으로 이동
 
@@ -433,7 +434,7 @@ Team chat
 == 팀 채팅
 
 The audio device couldn't be initialised.
-== 오디오 장치를 초기화할 수 없음
+== 오디오 장치를 초기화할 수 없습니다.
 
 The server is running a non-standard tuning on a pure game type.
 == 이 서버는 조정된 비표준 게임 모드를 실행하고 있습니다.
@@ -510,7 +511,7 @@ Player country:
 == 플레이어 국가:
 
 Show only chat messages from friends
-== 친구가 보낸 메세지만 표시
+== 친구가 보낸 메시지만 표시
 
 Spectate next
 == 다음 플레이어 관전
@@ -702,7 +703,7 @@ Country / Region
 == 국가 / 지역
 
 Destination file already exist
-== 대상 파일이 이미 존재합니다
+== 대상 파일이 이미 존재함
 
 Speed
 == 속도
@@ -830,9 +831,6 @@ Smooth Dynamic Camera
 Switch weapon when out of ammo
 == 탄약 고갈 시 무기 교체
 
-Reset wanted weapon on death
-== 사망 시 기본 무기로 전환
-
 Show clan above name plates
 == 이름 위에 클랜 표시
 
@@ -844,9 +842,6 @@ Skip the main menu
 
 Refresh Rate
 == 화면 주사율
-
-Show console window
-== 콘솔 창 표시
 
 Settings file
 == 설정 파일
@@ -870,7 +865,7 @@ Dummy settings
 == 더미 설정
 
 Download skins
-== 스킨 다운로드하기
+== 스킨 다운로드
 
 Vanilla skins only
 == 원판 스킨만 표시
@@ -938,9 +933,6 @@ Show HUD
 Chat command
 == 채팅 명령어
 
-UI mouse s.
-== UI 마우스 감도
-
 Dummy
 == 더미
 
@@ -972,7 +964,7 @@ Enable gun sound
 == 총 소리 활성화
 
 Enable long pain sound (used when shooting in freeze)
-== 동결(프리즈) 상태 비명 활성화
+== 동결 상태 비명 활성화
 
 Enable server message sound
 == 서버 메시지 소리 활성화
@@ -1016,14 +1008,8 @@ DDNet Client needs to be restarted to complete update!
 Use DDRace Scoreboard
 == DDRace 점수판 사용
 
-Show client IDs
-== 클라이언트 ID 표시
-
 Show score
 == 점수 표시
-
-Show health + ammo
-== 체력과 탄약 표시
 
 Show names in chat in team colors
 == 이름을 팀 색상으로 표시
@@ -1037,29 +1023,11 @@ Show kill messages
 Kill Messages
 == 킬 메시지
 
-Kill Message Normal Color
-== 다른 플레이어 킬 메시지 색상
-
-Kill Message Highlight Color
-== 플레이어 킬 메시지 색상
-
 Laser Outline Color
 == 레이저 테두리 색상
 
 Laser Inner Color
 == 레이저 색상
-
-Hookline
-== 갈고리 보조선
-
-No hit
-== 갈고리 불가
-
-Hookable
-== 갈고리 가능
-
-Tee
-== Tee
 
 Use old chat style
 == 구식 채팅 방식 사용
@@ -1185,7 +1153,7 @@ DDNet Client updated!
 == DDNet 클라이언트가 업데이트되었습니다!
 
 No updates available
-== 현재 업데이트 사항이 없습니다
+== 현재 업데이트 사항 없음
 
 Check now
 == 지금 확인
@@ -1227,7 +1195,7 @@ Run server
 == 서버 시작
 
 Server executable not found, can't run server
-== 서버 실행 파일이 없어 서버를 구동할 수 없습니다
+== 서버 실행 파일을 찾을 수 없어, 서버를 구동할 수 없습니다.
 
 Editor
 == 맵 편집기
@@ -1318,13 +1286,13 @@ AUS
 == 호주
 
 EUR
-== 유럽 
+== 유럽
 
 NA
-== 북미 
+== 북미
 
 SA
-== 남미 
+== 남미
 
 CHN
 == 중국
@@ -1357,28 +1325,243 @@ Can't find a Tutorial server
 == 튜토리얼 서버를 찾을 수 없음
 
 Toggle to edit your dummy settings
-== 
+== 더미 설정으로 전환합니다.
 
 Choose default eyes when joining a server
-== 
+== 서버 입장 시의 기본 눈을 선택합니다.
 
 Allows maps to render with more detail
-== 
+== 맵의 세부사항을 렌더링합니다.
 
 When you cross the start line, show a ghost tee replicating the movements of your best time
-== 
+== 출발선을 넘으면 당신의 최고 기록을 재현하는 고스트 Tee가 표시됩니다.
 
 Opacity
-== 
+== 불투명도
+
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
+== Tee와 이름 표시 등 다른 팀에 속한 엔티티의 불투명도를 조정합니다.
 
 Quads are used for background decoration
-== 
+== 맵 배경을 표시합니다.
 
 Tries to predict other entities to give a feel of low latency
-== 
+== 다른 엔티티를 예측하여 지연 시간을 줄입니다.
 
 Super
-== 
+== 무적
 
 Team %d
-== 
+== 팀 %d
+
+Position:
+== 위치
+
+Speed:
+== 속도
+
+Angle:
+== 각도
+
+Trying to determine UDP connectivity...
+== UDP 연결 확인 시도 중...
+
+UDP seems to be filtered.
+== UDP가 필터링된 것으로 보입니다.
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== UDP와 TCP의 IP 주소가 다른 것으로 보입니다. VPN, 프록시 또는 네트워크 가속기를 비활성화하십시오.
+
+No answer from server yet.
+== 서버로부터 응답이 아직 없습니다.
+
+Download community skins
+== 커뮤니티 스킨 다운로드
+
+Enable controller
+== 컨트롤러 활성화
+
+Controller %d: %s
+== 컨트롤러 %d: %s
+
+Click to cycle through all available controllers.
+== 사용가능한 컨트롤러로 전환하려면 클릭하십시오.
+
+[Ingame controller mode]
+Relative
+== 상대적
+
+[Ingame controller mode]
+Absolute
+== 절대적
+
+Ingame controller mode
+== 게임 내 컨트롤러 모드
+
+Ingame controller sens.
+== 게임 내 컨트롤러 감도
+
+UI controller sens.
+== UI 컨트롤러 감도
+
+Controller jitter tolerance
+== 컨트롤러 신호 오차 허용 범위
+
+No controller found. Plug in a controller and restart the game.
+== 컨트롤러가 발견되지 않았습니다. 컨트롤러 연결 후 게임을 재시작 하십시오.
+
+Device
+== 장치
+
+Status
+== 상태
+
+Aim bind
+== 조준 바인드
+
+Controller Axis #%d
+== 컨트롤러 축
+
+Mouse
+== 마우스
+
+Ingame mouse sens.
+== 게임 내 마우스 감도
+
+UI mouse sens.
+== UI 마우스 감도
+
+Controller
+== 컨트롤러
+
+Show dummy actions
+== 더미 동작 표시
+
+Show freeze bars
+== 동결 상태줄 표시
+
+Show player position
+== 플레이어 위치 표시
+
+Show player speed
+== 플레이어 속도 표시
+
+Show player target angle
+== 플레이어 조준 각도 표시
+
+Opacity of freeze bars inside freeze
+== 동결 타일 내에서의 동결 상태줄 불투명도
+
+Normal Color
+== 일반 메시지 색상
+
+Highlight Color
+== 강조 메시지 색상
+
+Extras
+== 기타
+
+Preparing demo playback
+== 데모 재생 준비 중
+
+Connected
+== 연결됨
+
+Loading map file from storage
+== 저장공간에서 맵 파일 로딩 중
+
+Why are you slowmo replaying to read this?
+== 왜 이것을 슬로우 모션으로 보려고 하십니까?
+
+Initializing components
+== 구성요소 초기화 중
+
+Initializing assets
+== 에셋 초기화 중
+
+Initializing map logic
+== 맵 로직 초기화 중
+
+Sending initial client info
+== 초기 클라이언트 정보 전송 중
+
+Uploading map data to GPU
+== 맵 데이터를 GPU에 업로드 중
+
+Getting game info
+== 게임 정보 가져오는 중
+
+Requesting to join the game
+== 게임 참가 요청 중
+
+Loading menu images
+== 메뉴 이미지 로딩 중
+
+Loading demo files
+== 데모 파일 로딩 중
+
+Loading ghost files
+== 고스트 파일 로딩 중
+
+Loading skin files
+== 스킨 파일 로딩 중
+
+Appearance
+== 표시
+
+Name Plate
+== 이름 표시
+
+Hook Collisions
+== 갈고리 보조선
+
+Show health, shields and ammo
+== 체력과 방패, 탄약 표시
+
+DDRace HUD
+== DDRace HUD
+
+Show client IDs in scoreboard
+== 점수판에 클라이언트 ID 표시
+
+Show DDRace HUD
+== DDRace HUD 표시
+
+Show jumps indicator
+== 점프 상태 표시
+
+Show hook strength indicator
+== 갈고리 세기 표시
+
+Hook collision line
+== 갈고리 보조선
+
+Hook collision line width
+== 갈고리 보조선 폭
+
+Hook collision line opacity
+== 갈고리 보조선 불투명도
+
+Colors of the hook collision line, in case of a possible collision with:
+== 갈고리 보조선 색상:
+
+Your movements are not taken into account when calculating the line colors
+== 색상 계산에 이동은 고려하지 않습니다.
+
+Nothing hookable
+== 갈고리 불가
+
+Something hookable
+== 갈고리 가능
+
+A Tee
+== Tee 대상
+
+Loading assets
+== 에셋 로딩 중
+
+Loading race demo files
+== 레이스 데모 파일 로딩 중
+
+Loading sound files
+== 소리 파일 로딩 중

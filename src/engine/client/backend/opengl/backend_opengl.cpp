@@ -1,5 +1,8 @@
 #include "backend_opengl.h"
-#include "engine/graphics.h"
+
+#include <engine/graphics.h>
+
+#include <engine/client/backend_sdl.h>
 
 #include <base/detect.h>
 
@@ -7,10 +10,11 @@
 
 #include <engine/client/backend/opengl/opengl_sl.h>
 #include <engine/client/backend/opengl/opengl_sl_program.h>
+#include <engine/client/blocklist_driver.h>
 
 #include <engine/client/backend/glsl_shader_compiler.h>
 
-#include <engine/shared/image_manipulation.h>
+#include <engine/gfx/image_manipulation.h>
 
 #ifndef BACKEND_AS_OPENGL_ES
 #include <GL/glew.h>
@@ -64,7 +68,7 @@ size_t CCommandProcessorFragment_OpenGL::GLFormatToImageColorChannelCount(int GL
 
 bool CCommandProcessorFragment_OpenGL::IsTexturedState(const CCommandBuffer::SState &State)
 {
-	return State.m_Texture >= 0 && State.m_Texture < (int)m_Textures.size();
+	return State.m_Texture >= 0 && State.m_Texture < (int)m_vTextures.size();
 }
 
 void CCommandProcessorFragment_OpenGL::SetState(const CCommandBuffer::SState &State, bool Use2DArrayTextures)
@@ -125,9 +129,9 @@ void CCommandProcessorFragment_OpenGL::SetState(const CCommandBuffer::SState &St
 		if(!Use2DArrayTextures)
 		{
 			glEnable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, m_Textures[State.m_Texture].m_Tex);
+			glBindTexture(GL_TEXTURE_2D, m_vTextures[State.m_Texture].m_Tex);
 
-			if(m_Textures[State.m_Texture].m_LastWrapMode != State.m_WrapMode)
+			if(m_vTextures[State.m_Texture].m_LastWrapMode != State.m_WrapMode)
 			{
 				switch(State.m_WrapMode)
 				{
@@ -142,7 +146,7 @@ void CCommandProcessorFragment_OpenGL::SetState(const CCommandBuffer::SState &St
 				default:
 					dbg_msg("render", "unknown wrapmode %d\n", State.m_WrapMode);
 				};
-				m_Textures[State.m_Texture].m_LastWrapMode = State.m_WrapMode;
+				m_vTextures[State.m_Texture].m_LastWrapMode = State.m_WrapMode;
 			}
 		}
 		else
@@ -151,13 +155,13 @@ void CCommandProcessorFragment_OpenGL::SetState(const CCommandBuffer::SState &St
 			{
 				if(!m_HasShaders)
 					glEnable(m_2DArrayTarget);
-				glBindTexture(m_2DArrayTarget, m_Textures[State.m_Texture].m_Tex2DArray);
+				glBindTexture(m_2DArrayTarget, m_vTextures[State.m_Texture].m_Tex2DArray);
 			}
 			else if(m_Has3DTextures)
 			{
 				if(!m_HasShaders)
 					glEnable(GL_TEXTURE_3D);
-				glBindTexture(GL_TEXTURE_3D, m_Textures[State.m_Texture].m_Tex2DArray);
+				glBindTexture(GL_TEXTURE_3D, m_vTextures[State.m_Texture].m_Tex2DArray);
 			}
 			else
 			{
@@ -269,19 +273,19 @@ static const char *GetGLSeverity(GLenum Type)
 }
 
 static void GLAPIENTRY
-GfxOpenGLMessageCallback(GLenum source,
-	GLenum type,
-	GLuint id,
-	GLenum severity,
-	GLsizei length,
-	const GLchar *message,
-	const void *userParam)
+GfxOpenGLMessageCallback(GLenum Source,
+	GLenum Type,
+	GLuint Id,
+	GLenum Severity,
+	GLsizei Length,
+	const GLchar *pMsg,
+	const void *pUserParam)
 {
-	dbg_msg("gfx", "[%s] (importance: %s) %s", GetGLErrorName(type), GetGLSeverity(severity), message);
+	dbg_msg("gfx", "[%s] (importance: %s) %s", GetGLErrorName(Type), GetGLSeverity(Severity), pMsg);
 }
 #endif
 
-bool CCommandProcessorFragment_OpenGL::GetPresentedImageData(uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &DstData)
+bool CCommandProcessorFragment_OpenGL::GetPresentedImageData(uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &vDstData)
 {
 	if(m_CanvasWidth == 0 || m_CanvasHeight == 0)
 	{
@@ -292,20 +296,20 @@ bool CCommandProcessorFragment_OpenGL::GetPresentedImageData(uint32_t &Width, ui
 		Width = m_CanvasWidth;
 		Height = m_CanvasHeight;
 		Format = CImageInfo::FORMAT_RGBA;
-		DstData.resize((size_t)Width * (Height + 1) * 4); // +1 for flipping image
+		vDstData.resize((size_t)Width * (Height + 1) * 4); // +1 for flipping image
 		glReadBuffer(GL_FRONT);
 		GLint Alignment;
 		glGetIntegerv(GL_PACK_ALIGNMENT, &Alignment);
 		glPixelStorei(GL_PACK_ALIGNMENT, 1);
-		glReadPixels(0, 0, m_CanvasWidth, m_CanvasHeight, GL_RGBA, GL_UNSIGNED_BYTE, DstData.data());
+		glReadPixels(0, 0, m_CanvasWidth, m_CanvasHeight, GL_RGBA, GL_UNSIGNED_BYTE, vDstData.data());
 		glPixelStorei(GL_PACK_ALIGNMENT, Alignment);
 
-		uint8_t *pTempRow = DstData.data() + Width * Height * 4;
+		uint8_t *pTempRow = vDstData.data() + Width * Height * 4;
 		for(uint32_t Y = 0; Y < Height / 2; ++Y)
 		{
-			mem_copy(pTempRow, DstData.data() + Y * Width * 4, Width * 4);
-			mem_copy(DstData.data() + Y * Width * 4, DstData.data() + ((Height - Y) - 1) * Width * 4, Width * 4);
-			mem_copy(DstData.data() + ((Height - Y) - 1) * Width * 4, pTempRow, Width * 4);
+			mem_copy(pTempRow, vDstData.data() + Y * Width * 4, Width * 4);
+			mem_copy(vDstData.data() + Y * Width * 4, vDstData.data() + ((Height - Y) - 1) * Width * 4, Width * 4);
+			mem_copy(vDstData.data() + ((Height - Y) - 1) * Width * 4, pTempRow, Width * 4);
 		}
 
 		return true;
@@ -317,7 +321,7 @@ bool CCommandProcessorFragment_OpenGL::InitOpenGL(const SCommand_Init *pCommand)
 	m_IsOpenGLES = pCommand->m_RequestedBackend == BACKEND_TYPE_OPENGL_ES;
 
 	TGLBackendReadPresentedImageData &ReadPresentedImgDataFunc = *pCommand->m_pReadPresentedImageDataFunc;
-	ReadPresentedImgDataFunc = [this](uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &DstData) { return GetPresentedImageData(Width, Height, Format, DstData); };
+	ReadPresentedImgDataFunc = [this](uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &vDstData) { return GetPresentedImageData(Width, Height, Format, vDstData); };
 
 	const char *pVendorString = (const char *)glGetString(GL_VENDOR);
 	dbg_msg("opengl", "Vendor string: %s", pVendorString);
@@ -534,6 +538,8 @@ bool CCommandProcessorFragment_OpenGL::InitOpenGL(const SCommand_Init *pCommand)
 			pCommand->m_pCapabilities->m_3DTextures = false;
 			pCommand->m_pCapabilities->m_2DArrayTextures = false;
 			pCommand->m_pCapabilities->m_NPOTTextures = false;
+
+			pCommand->m_pCapabilities->m_TrianglesAsQuads = false;
 		}
 		else
 		{
@@ -547,6 +553,8 @@ bool CCommandProcessorFragment_OpenGL::InitOpenGL(const SCommand_Init *pCommand)
 			pCommand->m_pCapabilities->m_3DTextures = true;
 			pCommand->m_pCapabilities->m_2DArrayTextures = true;
 			pCommand->m_pCapabilities->m_NPOTTextures = true;
+
+			pCommand->m_pCapabilities->m_TrianglesAsQuads = true;
 		}
 	}
 
@@ -632,12 +640,12 @@ bool CCommandProcessorFragment_OpenGL::Cmd_Init(const SCommand_Init *pCommand)
 
 void CCommandProcessorFragment_OpenGL::TextureUpdate(int Slot, int X, int Y, int Width, int Height, int GLFormat, void *pTexData)
 {
-	glBindTexture(GL_TEXTURE_2D, m_Textures[Slot].m_Tex);
+	glBindTexture(GL_TEXTURE_2D, m_vTextures[Slot].m_Tex);
 
 	if(!m_HasNPOTTextures)
 	{
-		float ResizeW = m_Textures[Slot].m_ResizeWidth;
-		float ResizeH = m_Textures[Slot].m_ResizeHeight;
+		float ResizeW = m_vTextures[Slot].m_ResizeWidth;
+		float ResizeH = m_vTextures[Slot].m_ResizeHeight;
 		if(ResizeW > 0 && ResizeH > 0)
 		{
 			int ResizedW = (int)(Width * ResizeW);
@@ -652,11 +660,11 @@ void CCommandProcessorFragment_OpenGL::TextureUpdate(int Slot, int X, int Y, int
 		}
 	}
 
-	if(m_Textures[Slot].m_RescaleCount > 0)
+	if(m_vTextures[Slot].m_RescaleCount > 0)
 	{
 		int OldWidth = Width;
 		int OldHeight = Height;
-		for(int i = 0; i < m_Textures[Slot].m_RescaleCount; ++i)
+		for(int i = 0; i < m_vTextures[Slot].m_RescaleCount; ++i)
 		{
 			Width >>= 1;
 			Height >>= 1;
@@ -681,35 +689,35 @@ void CCommandProcessorFragment_OpenGL::Cmd_Texture_Update(const CCommandBuffer::
 
 void CCommandProcessorFragment_OpenGL::DestroyTexture(int Slot)
 {
-	m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) - m_Textures[Slot].m_MemSize, std::memory_order_relaxed);
+	m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) - m_vTextures[Slot].m_MemSize, std::memory_order_relaxed);
 
-	if(m_Textures[Slot].m_Tex != 0)
+	if(m_vTextures[Slot].m_Tex != 0)
 	{
-		glDeleteTextures(1, &m_Textures[Slot].m_Tex);
+		glDeleteTextures(1, &m_vTextures[Slot].m_Tex);
 	}
 
-	if(m_Textures[Slot].m_Tex2DArray != 0)
+	if(m_vTextures[Slot].m_Tex2DArray != 0)
 	{
-		glDeleteTextures(1, &m_Textures[Slot].m_Tex2DArray);
+		glDeleteTextures(1, &m_vTextures[Slot].m_Tex2DArray);
 	}
 
 	if(IsNewApi())
 	{
-		if(m_Textures[Slot].m_Sampler != 0)
+		if(m_vTextures[Slot].m_Sampler != 0)
 		{
-			glDeleteSamplers(1, &m_Textures[Slot].m_Sampler);
+			glDeleteSamplers(1, &m_vTextures[Slot].m_Sampler);
 		}
-		if(m_Textures[Slot].m_Sampler2DArray != 0)
+		if(m_vTextures[Slot].m_Sampler2DArray != 0)
 		{
-			glDeleteSamplers(1, &m_Textures[Slot].m_Sampler2DArray);
+			glDeleteSamplers(1, &m_vTextures[Slot].m_Sampler2DArray);
 		}
 	}
 
-	m_Textures[Slot].m_Tex = 0;
-	m_Textures[Slot].m_Sampler = 0;
-	m_Textures[Slot].m_Tex2DArray = 0;
-	m_Textures[Slot].m_Sampler2DArray = 0;
-	m_Textures[Slot].m_LastWrapMode = CCommandBuffer::WRAP_REPEAT;
+	m_vTextures[Slot].m_Tex = 0;
+	m_vTextures[Slot].m_Sampler = 0;
+	m_vTextures[Slot].m_Tex2DArray = 0;
+	m_vTextures[Slot].m_Sampler2DArray = 0;
+	m_vTextures[Slot].m_LastWrapMode = CCommandBuffer::WRAP_REPEAT;
 }
 
 void CCommandProcessorFragment_OpenGL::Cmd_Texture_Destroy(const CCommandBuffer::SCommand_Texture_Destroy *pCommand)
@@ -728,11 +736,11 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 		glGetIntegerv(GL_MAX_TEXTURE_SIZE, &m_MaxTexSize);
 	}
 
-	if(Slot >= (int)m_Textures.size())
-		m_Textures.resize(m_Textures.size() * 2);
+	if(Slot >= (int)m_vTextures.size())
+		m_vTextures.resize(m_vTextures.size() * 2);
 
-	m_Textures[Slot].m_ResizeWidth = -1.f;
-	m_Textures[Slot].m_ResizeHeight = -1.f;
+	m_vTextures[Slot].m_ResizeWidth = -1.f;
+	m_vTextures[Slot].m_ResizeHeight = -1.f;
 
 	if(!m_HasNPOTTextures)
 	{
@@ -744,8 +752,8 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 			free(pTexData);
 			pTexData = pTmpData;
 
-			m_Textures[Slot].m_ResizeWidth = (float)PowerOfTwoWidth / (float)Width;
-			m_Textures[Slot].m_ResizeHeight = (float)PowerOfTwoHeight / (float)Height;
+			m_vTextures[Slot].m_ResizeWidth = (float)PowerOfTwoWidth / (float)Width;
+			m_vTextures[Slot].m_ResizeHeight = (float)PowerOfTwoHeight / (float)Height;
 
 			Width = PowerOfTwoWidth;
 			Height = PowerOfTwoHeight;
@@ -777,17 +785,17 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 			pTexData = pTmpData;
 		}
 	}
-	m_Textures[Slot].m_Width = Width;
-	m_Textures[Slot].m_Height = Height;
-	m_Textures[Slot].m_RescaleCount = RescaleCount;
+	m_vTextures[Slot].m_Width = Width;
+	m_vTextures[Slot].m_Height = Height;
+	m_vTextures[Slot].m_RescaleCount = RescaleCount;
 
 	int Oglformat = GLFormat;
 	int StoreOglformat = GLStoreFormat;
 
 	if((Flags & CCommandBuffer::TEXFLAG_NO_2D_TEXTURE) == 0)
 	{
-		glGenTextures(1, &m_Textures[Slot].m_Tex);
-		glBindTexture(GL_TEXTURE_2D, m_Textures[Slot].m_Tex);
+		glGenTextures(1, &m_vTextures[Slot].m_Tex);
+		glBindTexture(GL_TEXTURE_2D, m_vTextures[Slot].m_Tex);
 	}
 
 	if(Flags & CCommandBuffer::TEXFLAG_NOMIPMAPS || !m_HasMipMaps)
@@ -821,7 +829,7 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 		{
 			bool Is3DTexture = (Flags & Flag3DTexture) != 0;
 
-			glGenTextures(1, &m_Textures[Slot].m_Tex2DArray);
+			glGenTextures(1, &m_vTextures[Slot].m_Tex2DArray);
 
 			GLenum Target = GL_TEXTURE_3D;
 
@@ -834,12 +842,12 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 				Target = m_2DArrayTarget;
 			}
 
-			glBindTexture(Target, m_Textures[Slot].m_Tex2DArray);
+			glBindTexture(Target, m_vTextures[Slot].m_Tex2DArray);
 
 			if(IsNewApi())
 			{
-				glGenSamplers(1, &m_Textures[Slot].m_Sampler2DArray);
-				glBindSampler(0, m_Textures[Slot].m_Sampler2DArray);
+				glGenSamplers(1, &m_vTextures[Slot].m_Sampler2DArray);
+				glBindSampler(0, m_vTextures[Slot].m_Sampler2DArray);
 			}
 
 			glTexParameteri(Target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -847,14 +855,14 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 			{
 				glTexParameteri(Target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				if(IsNewApi())
-					glSamplerParameteri(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					glSamplerParameteri(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			}
 			else
 			{
 				glTexParameteri(Target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 				glTexParameteri(Target, GL_GENERATE_MIPMAP, GL_TRUE);
 				if(IsNewApi())
-					glSamplerParameteri(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+					glSamplerParameteri(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 			}
 
 			glTexParameteri(Target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -868,13 +876,13 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 
 			if(IsNewApi())
 			{
-				glSamplerParameteri(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glSamplerParameteri(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				glSamplerParameteri(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT);
+				glSamplerParameteri(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glSamplerParameteri(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glSamplerParameteri(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT);
 
 #ifndef BACKEND_AS_OPENGL_ES
 				if(m_OpenGLTextureLodBIAS != 0 && !m_IsOpenGLES)
-					glSamplerParameterf(m_Textures[Slot].m_Sampler2DArray, GL_TEXTURE_LOD_BIAS, ((GLfloat)m_OpenGLTextureLodBIAS / 1000.0f));
+					glSamplerParameterf(m_vTextures[Slot].m_Sampler2DArray, GL_TEXTURE_LOD_BIAS, ((GLfloat)m_OpenGLTextureLodBIAS / 1000.0f));
 #endif
 
 				glBindSampler(0, 0);
@@ -928,17 +936,17 @@ void CCommandProcessorFragment_OpenGL::TextureCreate(int Slot, int Width, int He
 	}
 
 	// This is the initial value for the wrap modes
-	m_Textures[Slot].m_LastWrapMode = CCommandBuffer::WRAP_REPEAT;
+	m_vTextures[Slot].m_LastWrapMode = CCommandBuffer::WRAP_REPEAT;
 
 	// calculate memory usage
-	m_Textures[Slot].m_MemSize = Width * Height * PixelSize;
+	m_vTextures[Slot].m_MemSize = Width * Height * PixelSize;
 	while(Width > 2 && Height > 2)
 	{
 		Width >>= 1;
 		Height >>= 1;
-		m_Textures[Slot].m_MemSize += Width * Height * PixelSize;
+		m_vTextures[Slot].m_MemSize += Width * Height * PixelSize;
 	}
-	m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) + m_Textures[Slot].m_MemSize, std::memory_order_relaxed);
+	m_pTextureMemoryUsage->store(m_pTextureMemoryUsage->load(std::memory_order_relaxed) + m_vTextures[Slot].m_MemSize, std::memory_order_relaxed);
 
 	free(pTexData);
 #endif
@@ -1049,7 +1057,7 @@ void CCommandProcessorFragment_OpenGL::Cmd_Screenshot(const CCommandBuffer::SCom
 
 CCommandProcessorFragment_OpenGL::CCommandProcessorFragment_OpenGL()
 {
-	m_Textures.resize(CCommandBuffer::MAX_TEXTURES);
+	m_vTextures.resize(CCommandBuffer::MAX_TEXTURES);
 	m_HasShaders = false;
 }
 
@@ -1132,19 +1140,6 @@ void CCommandProcessorFragment_OpenGL2::UseProgram(CGLSLTWProgram *pProgram)
 	pProgram->UseProgram();
 }
 
-bool CCommandProcessorFragment_OpenGL2::IsAndUpdateTextureSlotBound(int IDX, int Slot, bool Is2DArray)
-{
-	if(m_TextureSlotBoundToUnit[IDX].m_TextureSlot == Slot && m_TextureSlotBoundToUnit[IDX].m_Is2DArray == Is2DArray)
-		return true;
-	else
-	{
-		// the texture slot uses this index now
-		m_TextureSlotBoundToUnit[IDX].m_TextureSlot = Slot;
-		m_TextureSlotBoundToUnit[IDX].m_Is2DArray = Is2DArray;
-		return false;
-	}
-}
-
 void CCommandProcessorFragment_OpenGL2::SetState(const CCommandBuffer::SState &State, CGLSLTWProgram *pProgram, bool Use2DArrayTextures)
 {
 	if(m_LastBlendMode == CCommandBuffer::BLEND_NONE)
@@ -1209,55 +1204,31 @@ void CCommandProcessorFragment_OpenGL2::SetState(const CCommandBuffer::SState &S
 	if(IsTexturedState(State))
 	{
 		int Slot = 0;
-		if(m_UseMultipleTextureUnits)
+		if(!Use2DArrayTextures)
 		{
-			Slot = State.m_Texture % m_MaxTextureUnits;
-			if(!IsAndUpdateTextureSlotBound(Slot, State.m_Texture, Use2DArrayTextures))
-			{
-				glActiveTexture(GL_TEXTURE0 + Slot);
-				if(!Use2DArrayTextures)
-				{
-					glBindTexture(GL_TEXTURE_2D, m_Textures[State.m_Texture].m_Tex);
-					if(IsNewApi())
-						glBindSampler(Slot, m_Textures[State.m_Texture].m_Sampler);
-				}
-				else
-				{
-					glBindTexture(GL_TEXTURE_2D_ARRAY, m_Textures[State.m_Texture].m_Tex2DArray);
-					if(IsNewApi())
-						glBindSampler(Slot, m_Textures[State.m_Texture].m_Sampler2DArray);
-				}
-			}
+			if(!IsNewApi() && !m_HasShaders)
+				glEnable(GL_TEXTURE_2D);
+			glBindTexture(GL_TEXTURE_2D, m_vTextures[State.m_Texture].m_Tex);
+			if(IsNewApi())
+				glBindSampler(Slot, m_vTextures[State.m_Texture].m_Sampler);
 		}
 		else
 		{
-			Slot = 0;
-			if(!Use2DArrayTextures)
+			if(!m_Has2DArrayTextures)
 			{
 				if(!IsNewApi() && !m_HasShaders)
-					glEnable(GL_TEXTURE_2D);
-				glBindTexture(GL_TEXTURE_2D, m_Textures[State.m_Texture].m_Tex);
+					glEnable(GL_TEXTURE_3D);
+				glBindTexture(GL_TEXTURE_3D, m_vTextures[State.m_Texture].m_Tex2DArray);
 				if(IsNewApi())
-					glBindSampler(Slot, m_Textures[State.m_Texture].m_Sampler);
+					glBindSampler(Slot, m_vTextures[State.m_Texture].m_Sampler2DArray);
 			}
 			else
 			{
-				if(!m_Has2DArrayTextures)
-				{
-					if(!IsNewApi() && !m_HasShaders)
-						glEnable(GL_TEXTURE_3D);
-					glBindTexture(GL_TEXTURE_3D, m_Textures[State.m_Texture].m_Tex2DArray);
-					if(IsNewApi())
-						glBindSampler(Slot, m_Textures[State.m_Texture].m_Sampler2DArray);
-				}
-				else
-				{
-					if(!IsNewApi() && !m_HasShaders)
-						glEnable(m_2DArrayTarget);
-					glBindTexture(m_2DArrayTarget, m_Textures[State.m_Texture].m_Tex2DArray);
-					if(IsNewApi())
-						glBindSampler(Slot, m_Textures[State.m_Texture].m_Sampler2DArray);
-				}
+				if(!IsNewApi() && !m_HasShaders)
+					glEnable(m_2DArrayTarget);
+				glBindTexture(m_2DArrayTarget, m_vTextures[State.m_Texture].m_Tex2DArray);
+				if(IsNewApi())
+					glBindSampler(Slot, m_vTextures[State.m_Texture].m_Sampler2DArray);
 			}
 		}
 
@@ -1267,37 +1238,36 @@ void CCommandProcessorFragment_OpenGL2::SetState(const CCommandBuffer::SState &S
 			pProgram->m_LastTextureSampler = Slot;
 		}
 
-		if(m_Textures[State.m_Texture].m_LastWrapMode != State.m_WrapMode && !Use2DArrayTextures)
+		if(m_vTextures[State.m_Texture].m_LastWrapMode != State.m_WrapMode && !Use2DArrayTextures)
 		{
 			switch(State.m_WrapMode)
 			{
 			case CCommandBuffer::WRAP_REPEAT:
 				if(IsNewApi())
 				{
-					glSamplerParameteri(m_Textures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_S, GL_REPEAT);
-					glSamplerParameteri(m_Textures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_T, GL_REPEAT);
+					glSamplerParameteri(m_vTextures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_S, GL_REPEAT);
+					glSamplerParameteri(m_vTextures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_T, GL_REPEAT);
 				}
 				break;
 			case CCommandBuffer::WRAP_CLAMP:
 				if(IsNewApi())
 				{
-					glSamplerParameteri(m_Textures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-					glSamplerParameteri(m_Textures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+					glSamplerParameteri(m_vTextures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					glSamplerParameteri(m_vTextures[State.m_Texture].m_Sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
 				break;
 			default:
 				dbg_msg("render", "unknown wrapmode %d\n", State.m_WrapMode);
 			};
-			m_Textures[State.m_Texture].m_LastWrapMode = State.m_WrapMode;
+			m_vTextures[State.m_Texture].m_LastWrapMode = State.m_WrapMode;
 		}
 	}
 
-	if(pProgram->m_LastScreen[0] != State.m_ScreenTL.x || pProgram->m_LastScreen[1] != State.m_ScreenTL.y || pProgram->m_LastScreen[2] != State.m_ScreenBR.x || pProgram->m_LastScreen[3] != State.m_ScreenBR.y)
+	if(pProgram->m_LastScreenTL != State.m_ScreenTL || pProgram->m_LastScreenBR != State.m_ScreenBR)
 	{
-		pProgram->m_LastScreen[0] = State.m_ScreenTL.x;
-		pProgram->m_LastScreen[1] = State.m_ScreenTL.y;
-		pProgram->m_LastScreen[2] = State.m_ScreenBR.x;
-		pProgram->m_LastScreen[3] = State.m_ScreenBR.y;
+		pProgram->m_LastScreenTL = State.m_ScreenTL;
+		pProgram->m_LastScreenBR = State.m_ScreenBR;
+
 		// screen mapping
 		// orthographic projection matrix
 		// the z coordinate is the same for every vertex, so just ignore the z coordinate and set it in the shaders
@@ -1788,8 +1758,8 @@ bool CCommandProcessorFragment_OpenGL2::Cmd_Init(const SCommand_Init *pCommand)
 			if(AnalysisCorrect)
 			{
 				g_Config.m_Gfx3DTextureAnalysisRan = 1;
-				str_copy(g_Config.m_Gfx3DTextureAnalysisRenderer, pCommand->m_pRendererString, std::size(g_Config.m_Gfx3DTextureAnalysisRenderer));
-				str_copy(g_Config.m_Gfx3DTextureAnalysisVersion, pCommand->m_pVersionString, std::size(g_Config.m_Gfx3DTextureAnalysisVersion));
+				str_copy(g_Config.m_Gfx3DTextureAnalysisRenderer, pCommand->m_pRendererString);
+				str_copy(g_Config.m_Gfx3DTextureAnalysisVersion, pCommand->m_pVersionString);
 			}
 		}
 	}
@@ -1815,6 +1785,8 @@ void CCommandProcessorFragment_OpenGL2::Cmd_Shutdown(const SCommand_Shutdown *pC
 	delete m_pTileProgramTextured;
 	delete m_pPrimitive3DProgram;
 	delete m_pPrimitive3DProgramTextured;
+	for(auto &BufferObject : m_vBufferObjectIndices)
+		free(BufferObject.m_pData);
 }
 
 void CCommandProcessorFragment_OpenGL2::Cmd_RenderTex3D(const CCommandBuffer::SCommand_RenderTex3D *pCommand)
@@ -1873,11 +1845,11 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CreateBufferObject(const CCommandBuf
 	void *pUploadData = pCommand->m_pUploadData;
 	int Index = pCommand->m_BufferIndex;
 	// create necessary space
-	if((size_t)Index >= m_BufferObjectIndices.size())
+	if((size_t)Index >= m_vBufferObjectIndices.size())
 	{
-		for(int i = m_BufferObjectIndices.size(); i < Index + 1; ++i)
+		for(int i = m_vBufferObjectIndices.size(); i < Index + 1; ++i)
 		{
-			m_BufferObjectIndices.emplace_back(0);
+			m_vBufferObjectIndices.emplace_back(0);
 		}
 	}
 
@@ -1891,7 +1863,7 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CreateBufferObject(const CCommandBuf
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
-	SBufferObject &BufferObject = m_BufferObjectIndices[Index];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[Index];
 	BufferObject.m_BufferObjectID = VertBufferID;
 	BufferObject.m_DataSize = pCommand->m_DataSize;
 	BufferObject.m_pData = malloc(pCommand->m_DataSize);
@@ -1906,7 +1878,7 @@ void CCommandProcessorFragment_OpenGL2::Cmd_RecreateBufferObject(const CCommandB
 {
 	void *pUploadData = pCommand->m_pUploadData;
 	int Index = pCommand->m_BufferIndex;
-	SBufferObject &BufferObject = m_BufferObjectIndices[Index];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[Index];
 
 	if(m_HasShaders)
 	{
@@ -1929,7 +1901,7 @@ void CCommandProcessorFragment_OpenGL2::Cmd_UpdateBufferObject(const CCommandBuf
 {
 	void *pUploadData = pCommand->m_pUploadData;
 	int Index = pCommand->m_BufferIndex;
-	SBufferObject &BufferObject = m_BufferObjectIndices[Index];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[Index];
 
 	if(m_HasShaders)
 	{
@@ -1950,15 +1922,15 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CopyBufferObject(const CCommandBuffe
 	int WriteIndex = pCommand->m_WriteBufferIndex;
 	int ReadIndex = pCommand->m_ReadBufferIndex;
 
-	SBufferObject &ReadBufferObject = m_BufferObjectIndices[ReadIndex];
-	SBufferObject &WriteBufferObject = m_BufferObjectIndices[WriteIndex];
+	SBufferObject &ReadBufferObject = m_vBufferObjectIndices[ReadIndex];
+	SBufferObject &WriteBufferObject = m_vBufferObjectIndices[WriteIndex];
 
-	mem_copy(((uint8_t *)WriteBufferObject.m_pData) + (ptrdiff_t)pCommand->m_pWriteOffset, ((uint8_t *)ReadBufferObject.m_pData) + (ptrdiff_t)pCommand->m_pReadOffset, pCommand->m_CopySize);
+	mem_copy(((uint8_t *)WriteBufferObject.m_pData) + (ptrdiff_t)pCommand->m_WriteOffset, ((uint8_t *)ReadBufferObject.m_pData) + (ptrdiff_t)pCommand->m_ReadOffset, pCommand->m_CopySize);
 
 	if(m_HasShaders)
 	{
 		glBindBuffer(GL_ARRAY_BUFFER, WriteBufferObject.m_BufferObjectID);
-		glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)(pCommand->m_pWriteOffset), (GLsizeiptr)(pCommand->m_CopySize), ((uint8_t *)WriteBufferObject.m_pData) + (ptrdiff_t)pCommand->m_pWriteOffset);
+		glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)(pCommand->m_WriteOffset), (GLsizeiptr)(pCommand->m_CopySize), ((uint8_t *)WriteBufferObject.m_pData) + (ptrdiff_t)pCommand->m_WriteOffset);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 }
@@ -1966,7 +1938,7 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CopyBufferObject(const CCommandBuffe
 void CCommandProcessorFragment_OpenGL2::Cmd_DeleteBufferObject(const CCommandBuffer::SCommand_DeleteBufferObject *pCommand)
 {
 	int Index = pCommand->m_BufferIndex;
-	SBufferObject &BufferObject = m_BufferObjectIndices[Index];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[Index];
 
 	if(m_HasShaders)
 	{
@@ -1981,23 +1953,23 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CreateBufferContainer(const CCommand
 {
 	int Index = pCommand->m_BufferContainerIndex;
 	// create necessary space
-	if((size_t)Index >= m_BufferContainers.size())
+	if((size_t)Index >= m_vBufferContainers.size())
 	{
-		for(int i = m_BufferContainers.size(); i < Index + 1; ++i)
+		for(int i = m_vBufferContainers.size(); i < Index + 1; ++i)
 		{
 			SBufferContainer Container;
 			Container.m_ContainerInfo.m_Stride = 0;
 			Container.m_ContainerInfo.m_VertBufferBindingIndex = -1;
-			m_BufferContainers.push_back(Container);
+			m_vBufferContainers.push_back(Container);
 		}
 	}
 
-	SBufferContainer &BufferContainer = m_BufferContainers[Index];
+	SBufferContainer &BufferContainer = m_vBufferContainers[Index];
 
 	for(int i = 0; i < pCommand->m_AttrCount; ++i)
 	{
 		SBufferContainerInfo::SAttribute &Attr = pCommand->m_pAttributes[i];
-		BufferContainer.m_ContainerInfo.m_Attributes.push_back(Attr);
+		BufferContainer.m_ContainerInfo.m_vAttributes.push_back(Attr);
 	}
 
 	BufferContainer.m_ContainerInfo.m_Stride = pCommand->m_Stride;
@@ -2006,14 +1978,14 @@ void CCommandProcessorFragment_OpenGL2::Cmd_CreateBufferContainer(const CCommand
 
 void CCommandProcessorFragment_OpenGL2::Cmd_UpdateBufferContainer(const CCommandBuffer::SCommand_UpdateBufferContainer *pCommand)
 {
-	SBufferContainer &BufferContainer = m_BufferContainers[pCommand->m_BufferContainerIndex];
+	SBufferContainer &BufferContainer = m_vBufferContainers[pCommand->m_BufferContainerIndex];
 
-	BufferContainer.m_ContainerInfo.m_Attributes.clear();
+	BufferContainer.m_ContainerInfo.m_vAttributes.clear();
 
 	for(int i = 0; i < pCommand->m_AttrCount; ++i)
 	{
 		SBufferContainerInfo::SAttribute &Attr = pCommand->m_pAttributes[i];
-		BufferContainer.m_ContainerInfo.m_Attributes.push_back(Attr);
+		BufferContainer.m_ContainerInfo.m_vAttributes.push_back(Attr);
 	}
 
 	BufferContainer.m_ContainerInfo.m_Stride = pCommand->m_Stride;
@@ -2022,7 +1994,7 @@ void CCommandProcessorFragment_OpenGL2::Cmd_UpdateBufferContainer(const CCommand
 
 void CCommandProcessorFragment_OpenGL2::Cmd_DeleteBufferContainer(const CCommandBuffer::SCommand_DeleteBufferContainer *pCommand)
 {
-	SBufferContainer &BufferContainer = m_BufferContainers[pCommand->m_BufferContainerIndex];
+	SBufferContainer &BufferContainer = m_vBufferContainers[pCommand->m_BufferContainerIndex];
 
 	if(pCommand->m_DestroyAllBO)
 	{
@@ -2031,22 +2003,22 @@ void CCommandProcessorFragment_OpenGL2::Cmd_DeleteBufferContainer(const CCommand
 		{
 			if(m_HasShaders)
 			{
-				glDeleteBuffers(1, &m_BufferObjectIndices[VertBufferID].m_BufferObjectID);
+				glDeleteBuffers(1, &m_vBufferObjectIndices[VertBufferID].m_BufferObjectID);
 			}
 
-			free(m_BufferObjectIndices[VertBufferID].m_pData);
-			m_BufferObjectIndices[VertBufferID].m_pData = NULL;
+			free(m_vBufferObjectIndices[VertBufferID].m_pData);
+			m_vBufferObjectIndices[VertBufferID].m_pData = NULL;
 		}
 	}
 
-	BufferContainer.m_ContainerInfo.m_Attributes.clear();
+	BufferContainer.m_ContainerInfo.m_vAttributes.clear();
 }
 
 void CCommandProcessorFragment_OpenGL2::Cmd_IndicesRequiredNumNotify(const CCommandBuffer::SCommand_IndicesRequiredNumNotify *pCommand)
 {
 }
 
-void CCommandProcessorFragment_OpenGL2::RenderBorderTileEmulation(SBufferContainer &BufferContainer, const CCommandBuffer::SState &State, const float *pColor, const char *pBuffOffset, unsigned int DrawNum, const float *pOffset, const float *pDir, int JumpIndex)
+void CCommandProcessorFragment_OpenGL2::RenderBorderTileEmulation(SBufferContainer &BufferContainer, const CCommandBuffer::SState &State, const ColorRGBA &Color, const char *pBuffOffset, unsigned int DrawNum, const vec2 &Offset, const vec2 &Dir, int JumpIndex)
 {
 	if(m_HasShaders)
 	{
@@ -2067,9 +2039,9 @@ void CCommandProcessorFragment_OpenGL2::RenderBorderTileEmulation(SBufferContain
 		CCommandProcessorFragment_OpenGL::SetState(State, true);
 	}
 
-	bool IsTextured = BufferContainer.m_ContainerInfo.m_Attributes.size() == 2;
+	bool IsTextured = BufferContainer.m_ContainerInfo.m_vAttributes.size() == 2;
 
-	SBufferObject &BufferObject = m_BufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
@@ -2098,16 +2070,15 @@ void CCommandProcessorFragment_OpenGL2::RenderBorderTileEmulation(SBufferContain
 			vec2 *pPos = (vec2 *)((uint8_t *)BufferObject.m_pData + VertOffset);
 
 			GL_SVertexTex3D &Vertex = m_aStreamVertices[VertexCount++];
-			mem_copy(&Vertex.m_Pos, pPos, sizeof(vec2));
-			mem_copy(&Vertex.m_Color, pColor, sizeof(vec4));
+			Vertex.m_Pos = *pPos;
+			Vertex.m_Color = Color;
 			if(IsTextured)
 			{
 				vec3 *pTex = (vec3 *)((uint8_t *)BufferObject.m_pData + VertOffset + (ptrdiff_t)sizeof(vec2));
-				mem_copy(&Vertex.m_Tex, pTex, sizeof(vec3));
+				Vertex.m_Tex = *pTex;
 			}
 
-			Vertex.m_Pos.x += pOffset[0] + pDir[0] * XCount;
-			Vertex.m_Pos.y += pOffset[1] + pDir[1] * YCount;
+			Vertex.m_Pos += Offset + Dir * vec2(XCount, YCount);
 
 			if(VertexCount >= std::size(m_aStreamVertices))
 			{
@@ -2131,7 +2102,7 @@ void CCommandProcessorFragment_OpenGL2::RenderBorderTileEmulation(SBufferContain
 	}
 }
 
-void CCommandProcessorFragment_OpenGL2::RenderBorderTileLineEmulation(SBufferContainer &BufferContainer, const CCommandBuffer::SState &State, const float *pColor, const char *pBuffOffset, unsigned int IndexDrawNum, unsigned int DrawNum, const float *pOffset, const float *pDir)
+void CCommandProcessorFragment_OpenGL2::RenderBorderTileLineEmulation(SBufferContainer &BufferContainer, const CCommandBuffer::SState &State, const ColorRGBA &Color, const char *pBuffOffset, unsigned int IndexDrawNum, unsigned int DrawNum, const vec2 &Offset, const vec2 &Dir)
 {
 	if(m_HasShaders)
 	{
@@ -2152,9 +2123,9 @@ void CCommandProcessorFragment_OpenGL2::RenderBorderTileLineEmulation(SBufferCon
 		CCommandProcessorFragment_OpenGL::SetState(State, true);
 	}
 
-	bool IsTextured = BufferContainer.m_ContainerInfo.m_Attributes.size() == 2;
+	bool IsTextured = BufferContainer.m_ContainerInfo.m_vAttributes.size() == 2;
 
-	SBufferObject &BufferObject = m_BufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableClientState(GL_COLOR_ARRAY);
@@ -2181,16 +2152,15 @@ void CCommandProcessorFragment_OpenGL2::RenderBorderTileLineEmulation(SBufferCon
 			vec2 *pPos = (vec2 *)((uint8_t *)BufferObject.m_pData + VertOffset);
 
 			GL_SVertexTex3D &Vertex = m_aStreamVertices[VertexCount++];
-			mem_copy(&Vertex.m_Pos, pPos, sizeof(vec2));
-			mem_copy(&Vertex.m_Color, pColor, sizeof(vec4));
+			Vertex.m_Pos = *pPos;
+			Vertex.m_Color = Color;
 			if(IsTextured)
 			{
 				vec3 *pTex = (vec3 *)((uint8_t *)BufferObject.m_pData + VertOffset + (ptrdiff_t)sizeof(vec2));
-				mem_copy(&Vertex.m_Tex, pTex, sizeof(vec3));
+				Vertex.m_Tex = *pTex;
 			}
 
-			Vertex.m_Pos.x += pOffset[0] + pDir[0] * i;
-			Vertex.m_Pos.y += pOffset[1] + pDir[1] * i;
+			Vertex.m_Pos += Offset + Dir * i;
 
 			if(VertexCount >= std::size(m_aStreamVertices))
 			{
@@ -2218,34 +2188,34 @@ void CCommandProcessorFragment_OpenGL2::Cmd_RenderBorderTile(const CCommandBuffe
 {
 	int Index = pCommand->m_BufferContainerIndex;
 	// if space not there return
-	if((size_t)Index >= m_BufferContainers.size())
+	if((size_t)Index >= m_vBufferContainers.size())
 		return;
 
-	SBufferContainer &BufferContainer = m_BufferContainers[Index];
+	SBufferContainer &BufferContainer = m_vBufferContainers[Index];
 
-	RenderBorderTileEmulation(BufferContainer, pCommand->m_State, (float *)&pCommand->m_Color, pCommand->m_pIndicesOffset, pCommand->m_DrawNum, pCommand->m_Offset, pCommand->m_Dir, pCommand->m_JumpIndex);
+	RenderBorderTileEmulation(BufferContainer, pCommand->m_State, pCommand->m_Color, pCommand->m_pIndicesOffset, pCommand->m_DrawNum, pCommand->m_Offset, pCommand->m_Dir, pCommand->m_JumpIndex);
 }
 
 void CCommandProcessorFragment_OpenGL2::Cmd_RenderBorderTileLine(const CCommandBuffer::SCommand_RenderBorderTileLine *pCommand)
 {
 	int Index = pCommand->m_BufferContainerIndex;
 	// if space not there return
-	if((size_t)Index >= m_BufferContainers.size())
+	if((size_t)Index >= m_vBufferContainers.size())
 		return;
 
-	SBufferContainer &BufferContainer = m_BufferContainers[Index];
+	SBufferContainer &BufferContainer = m_vBufferContainers[Index];
 
-	RenderBorderTileLineEmulation(BufferContainer, pCommand->m_State, (float *)&pCommand->m_Color, pCommand->m_pIndicesOffset, pCommand->m_IndexDrawNum, pCommand->m_DrawNum, pCommand->m_Offset, pCommand->m_Dir);
+	RenderBorderTileLineEmulation(BufferContainer, pCommand->m_State, pCommand->m_Color, pCommand->m_pIndicesOffset, pCommand->m_IndexDrawNum, pCommand->m_DrawNum, pCommand->m_Offset, pCommand->m_Dir);
 }
 
 void CCommandProcessorFragment_OpenGL2::Cmd_RenderTileLayer(const CCommandBuffer::SCommand_RenderTileLayer *pCommand)
 {
 	int Index = pCommand->m_BufferContainerIndex;
 	// if space not there return
-	if((size_t)Index >= m_BufferContainers.size())
+	if((size_t)Index >= m_vBufferContainers.size())
 		return;
 
-	SBufferContainer &BufferContainer = m_BufferContainers[Index];
+	SBufferContainer &BufferContainer = m_vBufferContainers[Index];
 
 	if(pCommand->m_IndicesDrawNum == 0)
 	{
@@ -2272,9 +2242,9 @@ void CCommandProcessorFragment_OpenGL2::Cmd_RenderTileLayer(const CCommandBuffer
 		CCommandProcessorFragment_OpenGL::SetState(pCommand->m_State, true);
 	}
 
-	bool IsTextured = BufferContainer.m_ContainerInfo.m_Attributes.size() == 2;
+	bool IsTextured = BufferContainer.m_ContainerInfo.m_vAttributes.size() == 2;
 
-	SBufferObject &BufferObject = m_BufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
+	SBufferObject &BufferObject = m_vBufferObjectIndices[(size_t)BufferContainer.m_ContainerInfo.m_VertBufferBindingIndex];
 	if(m_HasShaders)
 		glBindBuffer(GL_ARRAY_BUFFER, BufferObject.m_BufferObjectID);
 
@@ -2290,11 +2260,11 @@ void CCommandProcessorFragment_OpenGL2::Cmd_RenderTileLayer(const CCommandBuffer
 	if(m_HasShaders)
 	{
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, false, BufferContainer.m_ContainerInfo.m_Stride, BufferContainer.m_ContainerInfo.m_Attributes[0].m_pOffset);
+		glVertexAttribPointer(0, 2, GL_FLOAT, false, BufferContainer.m_ContainerInfo.m_Stride, BufferContainer.m_ContainerInfo.m_vAttributes[0].m_pOffset);
 		if(IsTextured)
 		{
 			glEnableVertexAttribArray(1);
-			glVertexAttribPointer(1, 3, GL_FLOAT, false, BufferContainer.m_ContainerInfo.m_Stride, BufferContainer.m_ContainerInfo.m_Attributes[1].m_pOffset);
+			glVertexAttribPointer(1, 3, GL_FLOAT, false, BufferContainer.m_ContainerInfo.m_Stride, BufferContainer.m_ContainerInfo.m_vAttributes[1].m_pOffset);
 		}
 
 		for(int i = 0; i < pCommand->m_IndicesDrawNum; ++i)
@@ -2324,12 +2294,12 @@ void CCommandProcessorFragment_OpenGL2::Cmd_RenderTileLayer(const CCommandBuffer
 				ptrdiff_t VertOffset = (ptrdiff_t)(CurBufferOffset + (n * SingleVertSize));
 				vec2 *pPos = (vec2 *)((uint8_t *)BufferObject.m_pData + VertOffset);
 				GL_SVertexTex3D &Vertex = m_aStreamVertices[VertexCount++];
-				mem_copy(&Vertex.m_Pos, pPos, sizeof(vec2));
-				mem_copy(&Vertex.m_Color, &pCommand->m_Color, sizeof(vec4));
+				Vertex.m_Pos = *pPos;
+				Vertex.m_Color = pCommand->m_Color;
 				if(IsTextured)
 				{
 					vec3 *pTex = (vec3 *)((uint8_t *)BufferObject.m_pData + VertOffset + (ptrdiff_t)sizeof(vec2));
-					mem_copy(&Vertex.m_Tex, pTex, sizeof(vec3));
+					Vertex.m_Tex = *pTex;
 				}
 
 				if(VertexCount >= std::size(m_aStreamVertices))

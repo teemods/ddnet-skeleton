@@ -240,9 +240,6 @@ MOTD
 Map
 == Bane
 
-Mouse sens.
-== Mushastighet
-
 Move left
 == Gå til venstre
 
@@ -777,9 +774,6 @@ Save
 Switch weapon when out of ammo
 == Bytt våpen ved tom ammo
 
-Reset wanted weapon on death
-== Tilbakestill våpen ved død
-
 Show only chat messages from friends
 == Vis kun meldinger fra venner
 
@@ -791,9 +785,6 @@ Clan plates size
 
 Refresh Rate
 == Oppdateringsrate
-
-Show console window
-== Vis konsoll-vindu
 
 Automatically take statboard screenshot
 == Automatisk ta skjermbilde av spillerstatistikk
@@ -870,9 +861,6 @@ Show entities
 Show HUD
 == Vis HUD
 
-UI mouse s.
-== UI museh.
-
 may cause delay
 == kan gi forsinkelse
 
@@ -923,9 +911,6 @@ Use DDRace Scoreboard
 
 Show score
 == Vis poeng
-
-Show health + ammo
-== Vis liv + ammo
 
 Show names in chat in team colors
 == Vis lagfarger på navn i chat
@@ -1213,6 +1198,60 @@ The width of texture %s is not divisible by %d, or the height is not divisible b
 The format of texture %s is not RGBA which will cause visual bugs.
 == 
 
+Preparing demo playback
+== 
+
+Connected
+== 
+
+Loading map file from storage
+== 
+
+Why are you slowmo replaying to read this?
+== 
+
+Initializing components
+== 
+
+Initializing assets
+== 
+
+Initializing map logic
+== 
+
+Sending initial client info
+== 
+
+Position:
+== 
+
+Speed:
+== 
+
+Angle:
+== 
+
+Uploading map data to GPU
+== 
+
+Trying to determine UDP connectivity...
+== 
+
+UDP seems to be filtered.
+== 
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== 
+
+No answer from server yet.
+== 
+
+Getting game info
+== 
+
+Requesting to join the game
+== 
+
 Are you sure that you want to disconnect and switch to a different server?
 == 
 
@@ -1220,6 +1259,9 @@ Join Tutorial Server
 == 
 
 Skip Tutorial
+== 
+
+Loading menu images
 == 
 
 AFR
@@ -1252,6 +1294,12 @@ Refreshing...
 Leak IP
 == 
 
+Loading demo files
+== 
+
+Loading ghost files
+== 
+
 Settings file
 == 
 
@@ -1261,10 +1309,72 @@ Config directory
 Toggle to edit your dummy settings
 == 
 
+Download community skins
+== 
+
 Choose default eyes when joining a server
 == 
 
+Loading skin files
+== 
+
 Chat command
+== 
+
+Enable controller
+== 
+
+Controller %d: %s
+== 
+
+Click to cycle through all available controllers.
+== 
+
+[Ingame controller mode]
+Relative
+== 
+
+[Ingame controller mode]
+Absolute
+== 
+
+Ingame controller mode
+== 
+
+Ingame controller sens.
+== 
+
+UI controller sens.
+== 
+
+Controller jitter tolerance
+== 
+
+No controller found. Plug in a controller and restart the game.
+== 
+
+Device
+== 
+
+Status
+== 
+
+Aim bind
+== 
+
+Controller Axis #%d
+== 
+
+Mouse
+== 
+
+Ingame mouse sens.
+== 
+
+UI mouse sens.
+== 
+
+Controller
 == 
 
 Dummy
@@ -1300,16 +1410,88 @@ Graphics cards
 auto
 == 
 
-Show client IDs
+Appearance
+== 
+
+Name Plate
+== 
+
+Hook Collisions
 == 
 
 Kill Messages
 == 
 
-Kill Message Normal Color
+Show health, shields and ammo
 == 
 
-Kill Message Highlight Color
+DDRace HUD
+== 
+
+Show client IDs in scoreboard
+== 
+
+Show DDRace HUD
+== 
+
+Show jumps indicator
+== 
+
+Show dummy actions
+== 
+
+Show player position
+== 
+
+Show player speed
+== 
+
+Show player target angle
+== 
+
+Show freeze bars
+== 
+
+Opacity of freeze bars inside freeze
+== 
+
+Preview
+== 
+
+Show hook strength indicator
+== 
+
+Show local player's key presses
+== 
+
+Hook collision line
+== 
+
+Hook collision line width
+== 
+
+Hook collision line opacity
+== 
+
+Colors of the hook collision line, in case of a possible collision with:
+== 
+
+Your movements are not taken into account when calculating the line colors
+== 
+
+Nothing hookable
+== 
+
+Something hookable
+== 
+
+A Tee
+== 
+
+Normal Color
+== 
+
+Highlight Color
 == 
 
 Laser Outline Color
@@ -1318,34 +1500,19 @@ Laser Outline Color
 Laser Inner Color
 == 
 
-Hookline
-== 
-
-No hit
-== 
-
-Hookable
-== 
-
-Tee
-== 
-
-Preview
-== 
-
 When you cross the start line, show a ghost tee replicating the movements of your best time
 == 
 
 Opacity
 == 
 
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
+== 
+
 Quads are used for background decoration
 == 
 
 Tries to predict other entities to give a feel of low latency
-== 
-
-Show local player's key presses
 == 
 
 Background
@@ -1363,6 +1530,12 @@ Run on join
 Chat command (e.g. showall 1)
 == 
 
+Extras
+== 
+
+Loading assets
+== 
+
 Discord
 == 
 
@@ -1375,8 +1548,14 @@ Tutorial
 Can't find a Tutorial server
 == 
 
+Loading race demo files
+== 
+
 Super
 == 
 
 Team %d
+== 
+
+Loading sound files
 == 

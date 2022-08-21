@@ -1,40 +1,27 @@
 #include <base/detect.h>
 
-#if defined(CONF_FAMILY_WINDOWS)
-// For FlashWindowEx, FLASHWINFO, FLASHW_TRAY
-#define _WIN32_WINNT 0x0501
-#define WINVER 0x0501
-#endif
-
 #ifndef CONF_BACKEND_OPENGL_ES
 #include <GL/glew.h>
 #endif
 
-#include <engine/storage.h>
+#include <SDL.h>
 
-#include "SDL.h"
-
-#include "SDL_syswm.h"
-#include <base/detect.h>
 #include <base/math.h>
-#include <cmath>
 #include <cstdlib>
-
-#include "SDL_hints.h"
-#include "SDL_pixels.h"
-#include "SDL_video.h"
 
 #include <engine/shared/config.h>
 
 #include <base/tl/threading.h>
 
 #if defined(CONF_VIDEORECORDER)
-#include "video.h"
+#include <engine/shared/video.h>
 #endif
 
 #include "backend_sdl.h"
 
+#if defined(CONF_HEADLESS_CLIENT)
 #include "backend/null/backend_null.h"
+#endif
 
 #if !defined(CONF_BACKEND_OPENGL_ES)
 #include "backend/opengl/backend_opengl3.h"
@@ -45,22 +32,14 @@
 #endif
 
 #if defined(CONF_BACKEND_VULKAN)
-#include <SDL_vulkan.h>
-
 #include "backend/vulkan/backend_vulkan.h"
 #endif
 
 #include "graphics_threaded.h"
 
-#include <engine/shared/image_manipulation.h>
-
 #include <engine/graphics.h>
 
-#ifdef __MINGW32__
-extern "C" {
-int putenv(const char *);
-}
-#endif
+class IStorage;
 
 // ------------ CGraphicsBackend_Threaded
 
@@ -575,6 +554,7 @@ static int IsVersionSupportedGlew(EBackendType BackendType, int VersionMajor, in
 EBackendType CGraphicsBackend_SDL_GL::DetectBackend()
 {
 	EBackendType RetBackendType = BACKEND_TYPE_OPENGL;
+#if defined(CONF_BACKEND_VULKAN)
 	const char *pEnvDriver = SDL_getenv("DDNET_DRIVER");
 	if(pEnvDriver && str_comp_nocase(pEnvDriver, "GLES") == 0)
 		RetBackendType = BACKEND_TYPE_OPENGL_ES;
@@ -593,7 +573,7 @@ EBackendType CGraphicsBackend_SDL_GL::DetectBackend()
 		else if(str_comp_nocase(pConfBackend, "OpenGL") == 0)
 			RetBackendType = BACKEND_TYPE_OPENGL;
 	}
-#if !defined(CONF_BACKEND_VULKAN)
+#else
 	RetBackendType = BACKEND_TYPE_OPENGL;
 #endif
 #if !defined(CONF_BACKEND_OPENGL_ES) && !defined(CONF_BACKEND_OPENGL_ES3)
@@ -781,7 +761,7 @@ void CGraphicsBackend_SDL_GL::GetVideoModes(CVideoMode *pModes, int MaxModes, in
 		dbg_msg("gfx", "unable to get display mode: %s", SDL_GetError());
 	}
 
-	static constexpr int ModeCount = 256;
+	constexpr int ModeCount = 256;
 	SDL_DisplayMode aModes[ModeCount];
 	int NumModes = 0;
 	for(int i = 0; i < maxModes && NumModes < ModeCount; i++)
@@ -863,7 +843,7 @@ CGraphicsBackend_SDL_GL::CGraphicsBackend_SDL_GL()
 	mem_zero(m_aErrorString, std::size(m_aErrorString));
 }
 
-int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, int *pHeight, int *pRefreshRate, int FsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, IStorage *pStorage)
+int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, int *pHeight, int *pRefreshRate, int *pFsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, IStorage *pStorage)
 {
 #if defined(CONF_HEADLESS_CLIENT)
 	int InitError = 0;
@@ -902,7 +882,7 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 		if(m_BackendType == BACKEND_TYPE_VULKAN)
 		{
 			// try default opengl settings
-			str_copy(g_Config.m_GfxBackend, "OpenGL", std::size(g_Config.m_GfxBackend));
+			str_copy(g_Config.m_GfxBackend, "OpenGL");
 			g_Config.m_GfxGLMajor = 3;
 			g_Config.m_GfxGLMinor = 0;
 			g_Config.m_GfxGLPatch = 0;
@@ -943,6 +923,11 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 	else if(m_BackendType == BACKEND_TYPE_OPENGL_ES)
 	{
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+	}
+
+	if(IsOpenGLFamilyBackend)
+	{
+		*pFsaaSamples = std::clamp(*pFsaaSamples, 0, 8);
 	}
 
 	// set screen
@@ -1032,10 +1017,10 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 	if(IsOpenGLFamilyBackend)
 	{
 		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-		if(FsaaSamples)
+		if(*pFsaaSamples)
 		{
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, FsaaSamples);
+			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, *pFsaaSamples);
 		}
 		else
 		{
@@ -1223,7 +1208,7 @@ int CGraphicsBackend_SDL_GL::Init(const char *pName, int *pScreen, int *pWidth, 
 
 		if(pErrorStr != NULL)
 		{
-			str_copy(m_aErrorString, pErrorStr, std::size(m_aErrorString));
+			str_copy(m_aErrorString, pErrorStr);
 		}
 
 		return EGraphicsBackendErrorCodes::GRAPHICS_BACKEND_ERROR_CODE_GL_VERSION_FAILED;
@@ -1430,7 +1415,7 @@ bool CGraphicsBackend_SDL_GL::ResizeWindow(int w, int h, int RefreshRate)
 	{
 #ifdef CONF_FAMILY_WINDOWS
 		// in windows make the window windowed mode first, this prevents strange window glitches (other games probably do something similar)
-		SetWindowParams(0, 1, true);
+		SetWindowParams(0, true, true);
 #endif
 		SDL_DisplayMode SetMode = {};
 		SDL_DisplayMode ClosestMode = {};
@@ -1442,7 +1427,7 @@ bool CGraphicsBackend_SDL_GL::ResizeWindow(int w, int h, int RefreshRate)
 #ifdef CONF_FAMILY_WINDOWS
 		// now change it back to fullscreen, this will restore the above set state, bcs SDL saves fullscreen modes appart from other video modes (as of SDL 2.0.16)
 		// see implementation of SDL_SetWindowDisplayMode
-		SetWindowParams(1, 0, true);
+		SetWindowParams(1, false, true);
 #endif
 		return true;
 	}

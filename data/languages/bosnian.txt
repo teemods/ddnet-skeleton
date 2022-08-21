@@ -241,9 +241,6 @@ MOTD
 Map
 == Mapa
 
-Mouse sens.
-== Osjetljivost miša
-
 Move left
 == Lijevo
 
@@ -775,9 +772,6 @@ Save
 Switch weapon when out of ammo
 == Promijeni oružje kada nestane municije
 
-Reset wanted weapon on death
-== Resetuj željeno oružije prilikom smrti
-
 Show only chat messages from friends
 == Prikaži čat poruke samo od prijatelja
 
@@ -789,9 +783,6 @@ Clan plates size
 
 Refresh Rate
 == Brzina osvježavanja
-
-Show console window
-== Prikaži prozor konzole
 
 Automatically take statboard screenshot
 == Automatski slikaj tablicu bodova
@@ -865,9 +856,6 @@ Show entities
 Show HUD
 == Prikaži HUD
 
-UI mouse s.
-== Osjet. miša u UI
-
 may cause delay
 == može prouzrokovati kašnjenje
 
@@ -912,9 +900,6 @@ Use DDRace Scoreboard
 
 Show score
 == Prikaži bodove
-
-Show health + ammo
-== Prikaži život + municiju
 
 Show names in chat in team colors
 == Prikaži imena timova u boji
@@ -1063,10 +1048,64 @@ The width of texture %s is not divisible by %d, or the height is not divisible b
 The format of texture %s is not RGBA which will cause visual bugs.
 == 
 
+Preparing demo playback
+== 
+
+Connected
+== 
+
+Loading map file from storage
+== 
+
+Why are you slowmo replaying to read this?
+== 
+
+Initializing components
+== 
+
+Initializing assets
+== 
+
+Initializing map logic
+== 
+
+Sending initial client info
+== 
+
 Warning
 == 
 
 Debug mode enabled. Press Ctrl+Shift+D to disable debug mode.
+== 
+
+Position:
+== 
+
+Speed:
+== 
+
+Angle:
+== 
+
+Uploading map data to GPU
+== 
+
+Trying to determine UDP connectivity...
+== 
+
+UDP seems to be filtered.
+== 
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== 
+
+No answer from server yet.
+== 
+
+Getting game info
+== 
+
+Requesting to join the game
 == 
 
 Existing Player
@@ -1091,6 +1130,9 @@ Skip Tutorial
 == 
 
 Theme
+== 
+
+Loading menu images
 == 
 
 AFR
@@ -1135,6 +1177,9 @@ Refreshing...
 Leak IP
 == 
 
+Loading demo files
+== 
+
 %.2f MiB
 == 
 
@@ -1142,6 +1187,9 @@ Leak IP
 == 
 
 Demos directory
+== 
+
+Loading ghost files
 == 
 
 Smooth Dynamic Camera
@@ -1168,6 +1216,9 @@ Toggle to edit your dummy settings
 Download skins
 == 
 
+Download community skins
+== 
+
 Choose default eyes when joining a server
 == 
 
@@ -1177,7 +1228,66 @@ Skin Database
 Skins directory
 == 
 
+Loading skin files
+== 
+
 Chat command
+== 
+
+Enable controller
+== 
+
+Controller %d: %s
+== 
+
+Click to cycle through all available controllers.
+== 
+
+[Ingame controller mode]
+Relative
+== 
+
+[Ingame controller mode]
+Absolute
+== 
+
+Ingame controller mode
+== 
+
+Ingame controller sens.
+== 
+
+UI controller sens.
+== 
+
+Controller jitter tolerance
+== 
+
+No controller found. Plug in a controller and restart the game.
+== 
+
+Device
+== 
+
+Status
+== 
+
+Aim bind
+== 
+
+Controller Axis #%d
+== 
+
+Mouse
+== 
+
+Ingame mouse sens.
+== 
+
+UI mouse sens.
+== 
+
+Controller
 == 
 
 Dummy
@@ -1222,7 +1332,7 @@ Chat sound volume
 Background music volume
 == 
 
-HUD
+Appearance
 == 
 
 DDNet
@@ -1231,40 +1341,97 @@ DDNet
 Assets
 == 
 
-Show client IDs
+HUD
+== 
+
+Name Plate
+== 
+
+Hook Collisions
 == 
 
 Kill Messages
 == 
 
-Kill Message Normal Color
+Show health, shields and ammo
 == 
 
-Kill Message Highlight Color
+DDRace HUD
 == 
 
-Laser Outline Color
+Show client IDs in scoreboard
 == 
 
-Laser Inner Color
+Show DDRace HUD
 == 
 
-Hookline
+Show jumps indicator
 == 
 
-No hit
+Show dummy actions
 == 
 
-Hookable
+Show player position
 == 
 
-Tee
+Show player speed
+== 
+
+Show player target angle
+== 
+
+Show freeze bars
+== 
+
+Opacity of freeze bars inside freeze
 == 
 
 Use old chat style
 == 
 
 Preview
+== 
+
+Show hook strength indicator
+== 
+
+Show local player's key presses
+== 
+
+Hook collision line
+== 
+
+Hook collision line width
+== 
+
+Hook collision line opacity
+== 
+
+Colors of the hook collision line, in case of a possible collision with:
+== 
+
+Your movements are not taken into account when calculating the line colors
+== 
+
+Nothing hookable
+== 
+
+Something hookable
+== 
+
+A Tee
+== 
+
+Normal Color
+== 
+
+Highlight Color
+== 
+
+Laser Outline Color
+== 
+
+Laser Inner Color
 == 
 
 When you cross the start line, show a ghost tee replicating the movements of your best time
@@ -1276,6 +1443,9 @@ Overlay entities
 Opacity
 == 
 
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
+== 
+
 Quads are used for background decoration
 == 
 
@@ -1283,9 +1453,6 @@ AntiPing
 == 
 
 Tries to predict other entities to give a feel of low latency
-== 
-
-Show local player's key presses
 == 
 
 Background
@@ -1313,6 +1480,12 @@ Emoticons
 == 
 
 Particles
+== 
+
+Extras
+== 
+
+Loading assets
 == 
 
 Assets directory
@@ -1355,6 +1528,9 @@ Editor
 Play
 == 
 
+Loading race demo files
+== 
+
 Super
 == 
 
@@ -1371,6 +1547,9 @@ Auto
 == 
 
 Replay
+== 
+
+Loading sound files
 == 
 
 FPM

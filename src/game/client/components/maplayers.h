@@ -4,8 +4,6 @@
 #define GAME_CLIENT_COMPONENTS_MAPLAYERS_H
 #include <game/client/component.h>
 
-#include <base/color.h>
-
 #include <cstdint>
 #include <vector>
 
@@ -17,6 +15,10 @@ typedef char *offset_ptr_size;
 typedef uintptr_t offset_ptr;
 typedef unsigned int offset_ptr32;
 
+class CCamera;
+class CLayers;
+class CMapImages;
+class ColorRGBA;
 struct CMapItemGroup;
 struct CMapItemLayerTilemap;
 struct CMapItemLayerQuads;
@@ -27,7 +29,7 @@ class CMapLayers : public CComponent
 	friend class CMenuBackground;
 
 	CLayers *m_pLayers;
-	class CMapImages *m_pImages;
+	CMapImages *m_pImages;
 	int m_Type;
 	int m_CurrentLocalTick;
 	int m_LastLocalTick;
@@ -35,12 +37,10 @@ class CMapLayers : public CComponent
 
 	bool m_OnlineOnly;
 
-	void MapScreenToGroup(float CenterX, float CenterY, CMapItemGroup *pGroup, float Zoom = 1.0f);
-
 	struct STileLayerVisuals
 	{
 		STileLayerVisuals() :
-			m_pTilesOfLayer(NULL), m_pBorderTop(NULL), m_pBorderLeft(NULL), m_pBorderRight(NULL), m_pBorderBottom(NULL)
+			m_pTilesOfLayer(nullptr), m_pBorderTop(nullptr), m_pBorderLeft(nullptr), m_pBorderRight(nullptr), m_pBorderBottom(nullptr)
 		{
 			m_Width = 0;
 			m_Height = 0;
@@ -105,12 +105,12 @@ class CMapLayers : public CComponent
 		int m_BufferContainerIndex;
 		bool m_IsTextured;
 	};
-	std::vector<STileLayerVisuals *> m_TileLayerVisuals;
+	std::vector<STileLayerVisuals *> m_vpTileLayerVisuals;
 
 	struct SQuadLayerVisuals
 	{
 		SQuadLayerVisuals() :
-			m_QuadNum(0), m_pQuadsOfLayer(NULL), m_BufferContainerIndex(-1), m_IsTextured(false) {}
+			m_QuadNum(0), m_pQuadsOfLayer(nullptr), m_BufferContainerIndex(-1), m_IsTextured(false) {}
 
 		struct SQuadVisual
 		{
@@ -126,13 +126,16 @@ class CMapLayers : public CComponent
 		int m_BufferContainerIndex;
 		bool m_IsTextured;
 	};
-	std::vector<SQuadLayerVisuals *> m_QuadLayerVisuals;
+	std::vector<SQuadLayerVisuals *> m_vpQuadLayerVisuals;
 
-	virtual class CCamera *GetCurCamera();
+	virtual CCamera *GetCurCamera();
 
 	void LayersOfGroupCount(CMapItemGroup *pGroup, int &TileLayerCount, int &QuadLayerCount, bool &PassedGameLayer);
 
-	void RenderTileBorderCornerTiles(int WidthOffsetToOrigin, int HeightOffsetToOrigin, int TileCountWidth, int TileCountHeight, int BufferContainerIndex, float *pColor, offset_ptr_size IndexBufferOffset, float *pOffset, float *pDir);
+	void RenderTileBorderCornerTiles(int WidthOffsetToOrigin, int HeightOffsetToOrigin, int TileCountWidth, int TileCountHeight, int BufferContainerIndex, const ColorRGBA &Color, offset_ptr_size IndexBufferOffset, const vec2 &Offset, const vec2 &Dir);
+
+protected:
+	virtual bool CanRenderMenuBackground() { return true; }
 
 public:
 	enum
@@ -151,14 +154,14 @@ public:
 	virtual void OnRender() override;
 	virtual void OnMapLoad() override;
 
-	void RenderTileLayer(int LayerIndex, ColorRGBA *pColor, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup);
-	void RenderTileBorder(int LayerIndex, ColorRGBA *pColor, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup, int BorderX0, int BorderY0, int BorderX1, int BorderY1, int ScreenWidthTileCount, int ScreenHeightTileCount);
-	void RenderKillTileBorder(int LayerIndex, ColorRGBA *pColor, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup);
+	void RenderTileLayer(int LayerIndex, ColorRGBA &Color, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup);
+	void RenderTileBorder(int LayerIndex, const ColorRGBA &Color, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup, int BorderX0, int BorderY0, int BorderX1, int BorderY1, int ScreenWidthTileCount, int ScreenHeightTileCount);
+	void RenderKillTileBorder(int LayerIndex, const ColorRGBA &Color, CMapItemLayerTilemap *pTileLayer, CMapItemGroup *pGroup);
 	void RenderQuadLayer(int LayerIndex, CMapItemLayerQuads *pQuadLayer, CMapItemGroup *pGroup, bool ForceRender = false);
 
 	void EnvelopeUpdate();
 
-	static void EnvelopeEval(int TimeOffsetMillis, int Env, float *pChannels, void *pUser);
+	static void EnvelopeEval(int TimeOffsetMillis, int Env, ColorRGBA &Channels, void *pUser);
 };
 
 #endif

@@ -21,6 +21,12 @@
 # 2022-03-24 cheeser0613
 # 2022-03-29 Dan_cao
 # 2022-04-01 Dan_cao
+# 2022-05-14 Dan_cao
+# 2022-05-14 cheeser0613
+# 2022-06-16 cheeser0613
+# 2022-06-27 cheeser0613
+# 2022-07-04 cheeser0613
+# 2022-08-08 cheeser0613
 ##### /authors #####
 
 ##### translated strings #####
@@ -262,9 +268,6 @@ MOTD
 Map
 == 地图
 
-Mouse sens.
-== 鼠标灵敏度
-
 Move left
 == 向左移动
 
@@ -317,7 +320,7 @@ No password
 == 没有密码
 
 No servers found
-== 找不到任何服务器
+== 未检测到任何服务器
 
 No servers match your filter criteria
 == 没有服务器满足设置的筛选条件
@@ -497,9 +500,6 @@ Show clan above name plates
 Clan plates size
 == 战队名称大小
 
-Reset wanted weapon on death
-== 死亡后自动切换回默认武器
-
 Team
 == 队伍
 
@@ -665,9 +665,6 @@ Round
 Lht.
 == 亮度
 
-Show console window
-== 显示控制台窗口
-
 Automatically take statboard screenshot
 == 自动对统计板截图
 
@@ -694,9 +691,6 @@ Use DDRace Scoreboard
 
 Show score
 == 显示分数
-
-Show health + ammo
-== 显示生命与弹药
 
 Show names in chat in team colors
 == 以队伍颜色显示玩家昵称
@@ -726,7 +720,7 @@ Friend message
 == 好友消息
 
 Save the best demo of each race
-== 保存每场游戏最好记录的回放
+== 保存每场游戏最佳记录的回放
 
 Ghost
 == 影子
@@ -803,9 +797,6 @@ Connecting dummy
 Search
 == 搜索
 
-UI mouse s.
-== 界面鼠标灵敏度
-
 Vanilla skins only
 == 只显示原生皮肤
 
@@ -818,7 +809,7 @@ Ratio
 ##### Ratio的算法是击杀除以死亡次数 #####
 
 AntiPing
-== 延迟补偿
+== 延迟补偿（AntiPing）
 
 Countries
 == 国家
@@ -1053,7 +1044,7 @@ Toggle dyncam
 == 动态视野开关
 
 DDraceNetwork is a cooperative online game where the goal is for you and your group of tees to reach the finish line of the map. As a newcomer you should start on Novice servers, which host the easiest maps. Consider the ping to choose a server close to you.
-== DDraceNetwork 是一款在线合作游戏，你和你团体里的 Tee 的目标是抵达地图的终点。作为新手你应该从有着最简单的地图的简单（Novice） 服务器入门。根据延迟来选择离你相近的服务器。 
+== DDraceNetwork 是一款在线合作游戏，你和你团体里的 Tee 的目标是抵达地图的终点。作为新手你应该从有着最简单的地图的简单（Novice） 服务器入门。根据延迟来选择离你相近的服务器。
 
 It's recommended that you check the settings to adjust them to your liking before joining a server.
 == 建议你在进入服务器前检查一下设置并根据你的喜好进行调整。
@@ -1132,7 +1123,7 @@ Run server
 == 运行服务器
 
 Server executable not found, can't run server
-== 找不到服务器的可执行文件，无法运行服务器
+== 未检测到服务器的可执行文件，无法运行服务器
 
 Editor
 == 编辑器
@@ -1189,7 +1180,7 @@ Themes directory
 == 主题目录
 
 Download skins
-== 在线获取皮肤
+== 下载官方皮肤
 
 Skin Database
 == 皮肤数据库
@@ -1241,9 +1232,6 @@ Chat command
 
 Dummy
 == 分身
-
-Show client IDs
-== 显示客户端 ID
 
 Laser Outline Color
 == 激光边框颜色
@@ -1299,18 +1287,6 @@ Windowed borderless
 Desktop fullscreen
 == 无边框全屏
 
-Hookline
-== 钩索辅助线
-
-No hit
-== 未命中
-
-Hookable
-== 可钩砖块
-
-Tee
-== 其他玩家
-
 Are you sure that you want to disconnect and switch to a different server?
 == 你确定要断开此服务器连接并进入其他服务器吗？
 
@@ -1319,12 +1295,6 @@ Refreshing...
 
 Kill Messages
 == 击杀消息
-
-Kill Message Normal Color
-== 击杀消息普通颜色
-
-Kill Message Highlight Color
-== 击杀消息强调颜色
 
 Show local player's key presses
 == 显示自己的按键
@@ -1369,34 +1339,249 @@ auto
 == 自动
 
 Tutorial
-== 进入教学
+== 教学
 
 Can't find a Tutorial server
 == 无法找到教学服务器
 
 Toggle to edit your dummy settings
-== 
+== 编辑分身设置
 
 Choose default eyes when joining a server
-== 
+== 进入服务器时的默认表情
 
 Allows maps to render with more detail
-== 
+== 允许地图渲染更多细节
 
 When you cross the start line, show a ghost tee replicating the movements of your best time
-== 
+== 当越过起跑线时，游戏里将有影子回放你的最佳成绩
 
 Opacity
-== 
+== 不透明度
+
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
+== 调整单人区域或其他队伍中玩家的不透明度
 
 Quads are used for background decoration
-== 
+== 显示用作背景装饰的贴图
 
 Tries to predict other entities to give a feel of low latency
-== 
+== 尝试预测其他实体物以带来低延迟的游玩体验
 
 Super
-== 
+== 无敌
 
 Team %d
-== 
+== 队伍 %d
+
+Position:
+== 坐标
+
+Speed:
+== 速度
+
+Angle:
+== 角度
+
+Trying to determine UDP connectivity...
+== 正在尝试检测 UDP 连接...
+
+UDP seems to be filtered.
+== UDP 疑似被过滤
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== UDP 与 TCP 的 IP 地址并不相同。请尝试屏蔽 VPN 、代理网络以及网络加速器。
+
+No answer from server yet.
+== 服务器无响应
+
+Download community skins
+== 下载社区皮肤
+
+Enable controller
+== 启用控制器
+
+Controller %d: %s
+== 控制器 %d: %s
+
+Click to cycle through all available controllers.
+== 点击以切换其他控制器
+
+[Ingame controller mode]
+Relative
+== 相对
+
+[Ingame controller mode]
+Absolute
+== 绝对
+
+Ingame controller mode
+== 游戏内控制器瞄准模式
+
+Ingame controller sens.
+== 摇杆灵敏度（游戏）
+
+UI controller sens.
+== 摇杆灵敏度（界面）
+
+Controller jitter tolerance
+== 摇杆死区
+
+No controller found. Plug in a controller and restart the game.
+== 未检测到任何控制器。请尝试重新连接控制器并重启游戏。
+
+Device
+== 输入设备
+
+Status
+== 状态
+
+Aim bind
+== 操作轴绑定
+
+Controller Axis #%d
+== 摇杆 #%d
+
+Mouse
+== 鼠标
+
+Ingame mouse sens.
+== 鼠标灵敏度（游戏）
+
+UI mouse sens.
+== 鼠标灵敏度（界面）
+
+Controller
+== 控制器
+
+Show dummy actions
+== 显示分身状态
+
+Show freeze bars
+== 显示解冻进度条
+
+Show player position
+== 显示玩家坐标
+
+Show player speed
+== 显示玩家速度
+
+Show player target angle
+== 显示玩家瞄准角度
+
+Opacity of freeze bars inside freeze
+== 解冻进度条不透明度
+
+Normal Color
+== 非相关信息颜色
+
+Highlight Color
+== 相关信息颜色
+
+Extras
+== 其他
+
+Preparing demo playback
+== 正在准备回放
+
+Connected
+== 连接成功
+
+Loading map file from storage
+== 正在从硬盘中加载地图文件
+
+Why are you slowmo replaying to read this?
+== 所以你为什么要慢速回放来看这个
+
+Initializing components
+== 正在初始化游戏引擎
+
+Initializing assets
+== 正在初始化资源
+
+Initializing map logic
+== 正在初始化地图逻辑
+
+Sending initial client info
+== 正在发送初始客户端信息
+
+Uploading map data to GPU
+== 正在将地图数据传输至显卡
+
+Getting game info
+== 正在获取游戏信息
+
+Requesting to join the game
+== 正在请求加入游戏
+
+Loading menu images
+== 正在加载主菜单图片
+
+Loading demo files
+== 正在加载回放文件
+
+Loading ghost files
+== 正在加载影子文件
+
+Loading skin files
+== 正在加载皮肤文件
+
+Appearance
+== 游戏界面
+
+Name Plate
+== 昵称板块
+
+Hook Collisions
+== 瞄准辅助
+
+Show health, shields and ammo
+== 显示生命、护甲与弹药栏
+
+DDRace HUD
+== DDRace HUD
+
+Show client IDs in scoreboard
+== 显示客户端 IDs （计分板中）
+
+Show DDRace HUD
+== 显示 DDRace HUD
+
+Show jumps indicator
+== 显示可跳跃次数
+
+Show hook strength indicator
+== 显示对其他玩家的钩索强度
+
+Hook collision line
+== 瞄准辅助线
+
+Hook collision line width
+== 辅助线宽度
+
+Hook collision line opacity
+== 辅助线不透明度
+
+Colors of the hook collision line, in case of a possible collision with:
+== 辅助线颜色（当瞄准以下实体物时）：
+
+Your movements are not taken into account when calculating the line colors
+== 移动所造成的瞄准偏移将不计入考量
+
+Nothing hookable
+== 未瞄准任何实体物
+
+Something hookable
+== 可钩索的方块
+
+A Tee
+== 其他玩家
+
+Loading assets
+== 正在加载资源
+
+Loading race demo files
+== 正在加载回放文件
+
+Loading sound files
+== 正在加载声音文件

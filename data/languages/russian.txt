@@ -248,9 +248,6 @@ MOTD
 Map
 == Карта
 
-Mouse sens.
-== Чувств. мыши
-
 Move left
 == Шаг влево
 
@@ -400,7 +397,7 @@ Shotgun
 == Дробовик
 
 Show chat
-== Показать чат
+== Показывать чат
 
 Show friends only
 == Только с друзьями
@@ -450,9 +447,6 @@ Switch weapon on pickup
 Switch weapon when out of ammo
 == Переключать оружие без патронов
 
-Reset wanted weapon on death
-== Сбрасывать выбор оружия при смерти
-
 Show only chat messages from friends
 == Показывать сообщения только от друзей
 
@@ -461,9 +455,6 @@ Show clan above name plates
 
 Automatically take statboard screenshot
 == Делать снимок результатов
-
-Show console window
-== Показывать консоль
 
 Team
 == Команда
@@ -562,16 +553,13 @@ Threaded sound loading
 == Фоновая загрузка музыки
 
 Use DDRace Scoreboard
-== Использовать DDRace табло
+== Использовать DDRace таблицу счета
 
 Show kill messages
 == Показывать сообщения о смерти
 
 Show score
 == Показывать табло счета
-
-Show health + ammo
-== Показывать здоровье и патроны
 
 Show names in chat in team colors
 == Выделять сообщения в командном чате
@@ -616,7 +604,7 @@ Join game
 == Играть
 
 FSAA samples
-== FSAA сэмплов 
+== FSAA сэмплов
 
 Sound volume
 == Громкость звука
@@ -946,13 +934,10 @@ Lock team
 == Закрыть команду
 
 Show entities
-== Показать тайлы
+== Показывать тайлы
 
 Show HUD
 == Показывать HUD
-
-UI mouse s.
-== Чувств. мыши в меню
 
 may cause delay
 == создает задержку
@@ -1219,9 +1204,6 @@ The width of texture %s is not divisible by %d, or the height is not divisible b
 Dummy
 == Дамми
 
-Show client IDs
-== Показывать ID
-
 Laser Outline Color
 == Цвет обводки лазера
 
@@ -1285,9 +1267,6 @@ Windowed borderless
 Desktop fullscreen
 == Полноэкранный
 
-Tee
-== Tee
-
 Are you sure that you want to disconnect and switch to a different server?
 == Вы уверены, что хотите отключиться и перейти на другой сервер?
 
@@ -1295,22 +1274,7 @@ Refreshing...
 == Обновление...
 
 Kill Messages
-== Сообщения об убийстве
-
-Kill Message Normal Color
-== Цвет сообщения об убийстве
-
-Kill Message Highlight Color
-== Цвет подсветки сообщения об убийстве
-
-Hookline
-== Линия крюка
-
-No hit
-== Нельзя зацепиться
-
-Hookable
-== Можно зацепиться
+== Сообщения о смерти
 
 Show local player's key presses
 == Показывать нажатия клавиш игрока
@@ -1360,29 +1324,244 @@ Tutorial
 Can't find a Tutorial server
 == Обучающий сервер не найден
 
+Position:
+== Позиция
+
+Speed:
+== Скорость
+
+Angle:
+== Угол
+
+Trying to determine UDP connectivity...
+== Попытка определить UDP соединение...
+
+UDP seems to be filtered.
+== Похоже, что UDP фильтруется.
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== Похоже, что UDP и TCP IP отличаются. Попробуйте отключить VPN, прокси и ускорители сети.
+
+No answer from server yet.
+== Сервер еще не ответил.
+
 Toggle to edit your dummy settings
-== 
+== Переключите, чтобы изменить настройки дамми
+
+Download community skins
+== Скачивать скины сообщества
 
 Choose default eyes when joining a server
-== 
+== Выберите стандартные глаза при подключении к серверу
+
+Enable controller
+== Включить контроллер
+
+Controller %d: %s
+== Контроллер %d: %s
+
+Click to cycle through all available controllers.
+== Нажмите для переключения между всеми доступными контроллерами.
+
+[Ingame controller mode]
+Relative
+== Относительный
+
+[Ingame controller mode]
+Absolute
+== Абсолютный
+
+Ingame controller mode
+== Режим контроллера в игре
+
+Ingame controller sens.
+== Чувств. контроллера в игре
+
+UI controller sens.
+== Чувств. контроллера в меню
+
+Controller jitter tolerance
+== Устойчивость к движению контроллера
+
+No controller found. Plug in a controller and restart the game.
+== Контроллер не найден. Подключите контроллер и перезапустите игру.
+
+Device
+== Устройство
+
+Status
+== Состояние
+
+Aim bind
+== Привязка оси
+
+Controller Axis #%d
+== Ось контроллера #%d
+
+Mouse
+== Мышь
+
+Ingame mouse sens.
+== Чувств. мыши в игре
+
+UI mouse sens.
+== Чувств. мыши в меню
+
+Controller
+== Контроллер
 
 Allows maps to render with more detail
-== 
+== Позволяет более детализированную прорисовку карты
+
+Show dummy actions
+== Показывать действия дамми
+
+Show player position
+== Показывать позицию игрока
+
+Show player speed
+== Показывать скорость игрока
+
+Show player target angle
+== Показывать угол прицела игрока
+
+Show freeze bars
+== Показывать полоску фриза
+
+Opacity of freeze bars inside freeze
+== Прозрачность полоски фриза внутри фриза
+
+Normal Color
+== Обычный цвет
+
+Highlight Color
+== Цвет выделения
 
 When you cross the start line, show a ghost tee replicating the movements of your best time
-== 
+== При пересечении стартовой линии, показать тень Tee, повторяющую прохождение лучшего времени
 
 Opacity
-== 
+== Прозрачность
+
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
+== Регулирует прозрачность объектов другой команды, такие как Tee и имена.
 
 Quads are used for background decoration
-== 
+== Квады используются для фонового украшения
 
 Tries to predict other entities to give a feel of low latency
-== 
+== Пытыается предсказать другие объекты, чтобы придать ощущение низкой задержки
+
+Extras
+== Дополнительно
 
 Super
-== 
+== Супер
 
 Team %d
+== Команда %d
+
+Preparing demo playback
+== Подготовка воспроизведения демо
+
+Connected
+== Подключено
+
+Loading map file from storage
+== Загрузка файлов карты из памяти
+
+Initializing components
+== Подготовка компонентов
+
+Initializing assets
+== Подготовка ресурсов
+
+Initializing map logic
+== Подготовка алгоритмов карты
+
+Sending initial client info
+== Отправка начальных данных о клиенте
+
+Uploading map data to GPU
+== Загрузка данных о карте в GPU
+
+Getting game info
+== Получение игровых данных
+
+Requesting to join the game
+== Запрашивается подключение к игре
+
+Loading menu images
+== Загрузка изображений меню
+
+Loading demo files
+== Загрузка файлов демо
+
+Loading ghost files
+== Загрузка файлов тени
+
+Loading skin files
+== Загрузка файлов скинов
+
+Appearance
+== Внешний вид
+
+Name Plate
+== Табличка имени
+
+Hook Collisions
+== Коллизии крюка
+
+Show health, shields and ammo
+== Показывать здоровье, щиты и патроны
+
+DDRace HUD
+== DDRace HUD
+
+Show client IDs in scoreboard
+== Показывать ID клиентов в таблице счета
+
+Show DDRace HUD
+== Показывать DDRace HUD
+
+Show jumps indicator
+== Показывать индикатор прыжка
+
+Show hook strength indicator
+== Показывать индикатор силы крюка
+
+Hook collision line
+== Линия коллизии крюка
+
+Hook collision line width
+== Ширина линии
+
+Hook collision line opacity
+== Прозрачность линии
+
+Colors of the hook collision line, in case of a possible collision with:
+== Цвет линии, в случае если:
+
+Your movements are not taken into account when calculating the line colors
+== Ваши движения не учитываются, когда рассчитывается цвет линии
+
+Nothing hookable
+== Невозможно зацепиться
+
+Something hookable
+== Возможно зацепиться
+
+A Tee
+== Столкновение с Tee
+
+Loading assets
+== Загрузка ресурсов
+
+Loading race demo files
+== Загрузка файлов демо
+
+Loading sound files
+== Загрузка звуковых файлов
+
+Why are you slowmo replaying to read this?
 == 

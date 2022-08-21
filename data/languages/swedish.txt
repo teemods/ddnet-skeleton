@@ -242,9 +242,6 @@ MOTD
 Map
 == Bana
 
-Mouse sens.
-== Muskänslighet
-
 Move left
 == Gå vänster
 
@@ -609,17 +606,11 @@ Name plates size
 Type:
 == Typ:
 
-Show console window
-== Visa konsol fönster
-
 Vanilla skins only
 == Bara vanilla skins
 
 New random timeout code
 == Ny slumpad timeout kod
-
-UI mouse s.
-== UI mus s.
 
 Select a name
 == Välj ett namn
@@ -631,7 +622,7 @@ Default zoom
 == Standard zoom
 
 Dummy copy
-== Dummy kopiering 
+== Dummy kopiering
 
 Show tiles layers from BG map
 == Visa tiles lager från BG bana
@@ -803,9 +794,6 @@ Update failed! Check log...
 
 Check now
 == Kolla nu
-
-Reset wanted weapon on death
-== Återställ önskade vapen vid död
 
 Search
 == Sök
@@ -1041,9 +1029,6 @@ Show others
 Unfinished map
 == Oavklarad bana
 
-Show health + ammo
-== Visa hälsa + ammunition
-
 Show quads
 == Visa quads
 
@@ -1249,35 +1234,14 @@ Background music volume
 Assets
 == Assets
 
-Show client IDs
-== Visa klient ID:n
-
 Kill Messages
 == Döds meddelanden
-
-Kill Message Normal Color
-== Döds Meddelanden Normal Färg
-
-Kill Message Highlight Color
-== Döds Meddelanden Betonad Färg
 
 Laser Outline Color
 == Laser Yttre Färg
 
 Laser Inner Color
 == Laser Inre Färg
-
-Hookline
-== Hooklina
-
-No hit
-== Ingen träff
-
-Hookable
-== Hookable
-
-Tee
-== Tee
 
 Use old chat style
 == Använd gammal chatt stil
@@ -1327,16 +1291,141 @@ https://ddnet.tw/discord
 The format of texture %s is not RGBA which will cause visual bugs.
 == 
 
+Preparing demo playback
+== 
+
+Connected
+== 
+
+Loading map file from storage
+== 
+
+Why are you slowmo replaying to read this?
+== 
+
+Initializing components
+== 
+
+Initializing assets
+== 
+
+Initializing map logic
+== 
+
+Sending initial client info
+== 
+
+Position:
+== 
+
+Speed:
+== 
+
+Angle:
+== 
+
+Uploading map data to GPU
+== 
+
+Trying to determine UDP connectivity...
+== 
+
+UDP seems to be filtered.
+== 
+
+UDP and TCP IP addresses seem to be different. Try disabling VPN, proxy or network accelerators.
+== 
+
+No answer from server yet.
+== 
+
+Getting game info
+== 
+
+Requesting to join the game
+== 
+
 Join Tutorial Server
 == 
 
 Skip Tutorial
 == 
 
+Loading menu images
+== 
+
+Loading demo files
+== 
+
+Loading ghost files
+== 
+
 Toggle to edit your dummy settings
 == 
 
+Download community skins
+== 
+
 Choose default eyes when joining a server
+== 
+
+Loading skin files
+== 
+
+Enable controller
+== 
+
+Controller %d: %s
+== 
+
+Click to cycle through all available controllers.
+== 
+
+[Ingame controller mode]
+Relative
+== 
+
+[Ingame controller mode]
+Absolute
+== 
+
+Ingame controller mode
+== 
+
+Ingame controller sens.
+== 
+
+UI controller sens.
+== 
+
+Controller jitter tolerance
+== 
+
+No controller found. Plug in a controller and restart the game.
+== 
+
+Device
+== 
+
+Status
+== 
+
+Aim bind
+== 
+
+Controller Axis #%d
+== 
+
+Mouse
+== 
+
+Ingame mouse sens.
+== 
+
+UI mouse sens.
+== 
+
+Controller
 == 
 
 Allows maps to render with more detail
@@ -1357,10 +1446,88 @@ Graphics cards
 auto
 == 
 
+Appearance
+== 
+
+Name Plate
+== 
+
+Hook Collisions
+== 
+
+Show health, shields and ammo
+== 
+
+DDRace HUD
+== 
+
+Show client IDs in scoreboard
+== 
+
+Show DDRace HUD
+== 
+
+Show jumps indicator
+== 
+
+Show dummy actions
+== 
+
+Show player position
+== 
+
+Show player speed
+== 
+
+Show player target angle
+== 
+
+Show freeze bars
+== 
+
+Opacity of freeze bars inside freeze
+== 
+
+Show hook strength indicator
+== 
+
+Hook collision line
+== 
+
+Hook collision line width
+== 
+
+Hook collision line opacity
+== 
+
+Colors of the hook collision line, in case of a possible collision with:
+== 
+
+Your movements are not taken into account when calculating the line colors
+== 
+
+Nothing hookable
+== 
+
+Something hookable
+== 
+
+A Tee
+== 
+
+Normal Color
+== 
+
+Highlight Color
+== 
+
 When you cross the start line, show a ghost tee replicating the movements of your best time
 == 
 
 Opacity
+== 
+
+Adjust the opacity of entities belonging to other teams, such as tees and nameplates
 == 
 
 Quads are used for background decoration
@@ -1369,14 +1536,26 @@ Quads are used for background decoration
 Tries to predict other entities to give a feel of low latency
 == 
 
+Extras
+== 
+
+Loading assets
+== 
+
 Tutorial
 == 
 
 Can't find a Tutorial server
 == 
 
+Loading race demo files
+== 
+
 Super
 == 
 
 Team %d
+== 
+
+Loading sound files
 == 

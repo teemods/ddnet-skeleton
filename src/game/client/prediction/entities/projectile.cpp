@@ -1,10 +1,14 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
-#include "projectile.h"
-#include <game/client/projectile_data.h>
-#include <game/generated/protocol.h>
-
 #include <engine/shared/config.h>
+
+#include <game/client/projectile_data.h>
+#include <game/collision.h>
+#include <game/generated/protocol.h>
+#include <game/mapitems.h>
+
+#include "character.h"
+#include "projectile.h"
 
 CProjectile::CProjectile(
 	CGameWorld *pGameWorld,
@@ -90,14 +94,12 @@ void CProjectile::Tick()
 	if(
 		pOwnerChar &&
 		pTargetChr &&
-		pOwnerChar->IsAlive() &&
-		pTargetChr->IsAlive() &&
 		!pTargetChr->CanCollide(m_Owner))
 	{
 		isWeaponCollide = true;
 	}
 
-	if(((pTargetChr && (pOwnerChar ? !(pOwnerChar->m_Hit & CCharacter::DISABLE_HIT_GRENADE) : g_Config.m_SvHit || m_Owner == -1 || pTargetChr == pOwnerChar)) || Collide || GameLayerClipped(CurPos)) && !isWeaponCollide)
+	if(((pTargetChr && (pOwnerChar ? !pOwnerChar->GrenadeHitDisabled() : g_Config.m_SvHit || m_Owner == -1 || pTargetChr == pOwnerChar)) || Collide || GameLayerClipped(CurPos)) && !isWeaponCollide)
 	{
 		if(m_Explosive && (!pTargetChr || (pTargetChr && (!m_Freeze || (m_Type == WEAPON_SHOTGUN && Collide)))))
 		{
@@ -108,7 +110,7 @@ void CProjectile::Tick()
 			CCharacter *apEnts[MAX_CLIENTS];
 			int Num = GameWorld()->FindEntities(CurPos, 1.0f, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 			for(int i = 0; i < Num; ++i)
-				if(apEnts[i] && (m_Layer != LAYER_SWITCH || (m_Layer == LAYER_SWITCH && m_Number > 0 && m_Number < Collision()->m_NumSwitchers + 1 && GameWorld()->Collision()->m_pSwitchers[m_Number].m_Status[apEnts[i]->Team()])))
+				if(apEnts[i] && (m_Layer != LAYER_SWITCH || (m_Layer == LAYER_SWITCH && m_Number > 0 && m_Number < (int)Switchers().size() && Switchers()[m_Number].m_aStatus[apEnts[i]->Team()])))
 					apEnts[i]->Freeze();
 		}
 		if(Collide && m_Bouncing != 0)

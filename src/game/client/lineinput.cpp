@@ -2,7 +2,6 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include <base/math.h>
 #include <base/system.h>
-#include <base/tl/base.h>
 
 #include "lineinput.h"
 #include <engine/keys.h>
@@ -19,7 +18,7 @@ void CLineInput::Clear()
 
 void CLineInput::Set(const char *pString)
 {
-	str_copy(m_aStr, pString, sizeof(m_aStr));
+	str_copy(m_aStr, pString);
 	str_utf8_stats(m_aStr, MAX_SIZE, MAX_CHARS, &m_Len, &m_NumChars);
 	m_CursorPos = m_Len;
 }
@@ -27,7 +26,7 @@ void CLineInput::Set(const char *pString)
 void CLineInput::SetRange(const char *pString, int Begin, int End)
 {
 	if(Begin > End)
-		swap(Begin, End);
+		std::swap(Begin, End);
 	Begin = clamp(Begin, 0, m_Len);
 	End = clamp(End, 0, m_Len);
 
@@ -60,7 +59,7 @@ void CLineInput::SetRange(const char *pString, int Begin, int End)
 
 void CLineInput::Editing(const char *pString, int Cursor)
 {
-	str_copy(m_aDisplayStr, m_aStr, sizeof(m_aDisplayStr));
+	str_copy(m_aDisplayStr, m_aStr);
 	char aEditingText[IInput::INPUT_TEXT_SIZE + 2];
 	str_format(aEditingText, sizeof(aEditingText), "[%s]", pString);
 	int NewTextLen = str_length(aEditingText);

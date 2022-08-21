@@ -14,9 +14,7 @@
 #define __USE_GNU
 #endif
 
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <time.h>
 
 #ifdef CONF_FAMILY_UNIX
@@ -28,9 +26,10 @@
 #include <sys/socket.h>
 #endif
 
-#if defined(__cplusplus)
+#include <chrono>
+#include <functional>
+
 extern "C" {
-#endif
 
 /**
  * @defgroup Debug
@@ -66,6 +65,17 @@ void dbg_assert_imp(const char *filename, int line, int test, const char *msg);
 #endif
 
 /**
+ * Checks whether the program is currently shutting down due to a failed
+ * assert.
+ *
+ * @ingroup Debug
+ *
+ * @return indication whether the program is currently shutting down due to a
+ * failed assert.
+ */
+bool dbg_assert_has_failed();
+
+/**
  * Breaks into the debugger.
  *
  * @ingroup Debug
@@ -73,7 +83,11 @@ void dbg_assert_imp(const char *filename, int line, int test, const char *msg);
  *
  * @see dbg_assert
  */
-void dbg_break();
+#if defined(__cplusplus)
+[[noreturn]]
+#endif
+void
+dbg_break();
 
 /**
  * Prints a debug message.
@@ -86,7 +100,7 @@ void dbg_break();
  * @remark Also works in release mode.
  *
  * @see dbg_assert
-*/
+ */
 void dbg_msg(const char *sys, const char *fmt, ...)
 	GNUC_ATTRIBUTE((format(printf, 2, 3)));
 
@@ -151,6 +165,19 @@ void mem_zero(void *block, unsigned size);
 int mem_comp(const void *a, const void *b, int size);
 
 /**
+ * Checks whether a block of memory contains null bytes.
+ *
+ * @ingroup Memory
+ *
+ * @param block Pointer to the block to check for nulls.
+ * @param size Size of the block.
+ *
+ * @return 1 - The block has a null byte.
+ * @return 0 - The block does not have a null byte.
+ */
+int mem_has_null(const void *block, unsigned size);
+
+/**
  * @defgroup File-IO
  *
  * I/O related operations.
@@ -181,7 +208,7 @@ typedef struct IOINTERNAL *IOHANDLE;
  * @ingroup File-IO
  *
  * @param File to open.
- * @param flags A set of IOFLAG flags. 
+ * @param flags A set of IOFLAG flags.
  *
  * @sa IOFLAG_READ, IOFLAG_WRITE, IOFLAG_APPEND, IOFLAG_SKIP_BOM.
  *
@@ -203,6 +230,36 @@ IOHANDLE io_open(const char *filename, int flags);
  *
  */
 unsigned io_read(IOHANDLE io, void *buffer, unsigned size);
+
+/**
+ * Reads the rest of the file into a buffer.
+ *
+ * @ingroup File-IO
+ *
+ * @param io Handle to the file to read data from.
+ * @param result Receives the file's remaining contents.
+ * @param result_len Receives the file's remaining length.
+ *
+ * @remark Does NOT guarantee that there are no internal null bytes.
+ * @remark The result must be freed after it has been used.
+ */
+void io_read_all(IOHANDLE io, void **result, unsigned *result_len);
+
+/**
+ * Reads the rest of the file into a zero-terminated buffer with
+ * no internal null bytes.
+ *
+ * @ingroup File-IO
+ *
+ * @param io Handle to the file to read data from.
+ *
+ * @return The file's remaining contents or null on failure.
+ *
+ * @remark Guarantees that there are no internal null bytes.
+ * @remark Guarantees that result will contain zero-termination.
+ * @remark The result must be freed after it has been used.
+ */
+char *io_read_all_str(IOHANDLE io);
 
 /**
  * Skips data in a file.
@@ -466,7 +523,7 @@ void aio_wait(ASYNCIO *aio);
  *
  * @param aio Handle to the file.
  *
-i */
+ */
 void aio_free(ASYNCIO *aio);
 
 /**
@@ -475,15 +532,6 @@ void aio_free(ASYNCIO *aio);
  *
  * @see Locks
  */
-
-/**
- * Suspends the current thread for a given period.
- *
- * @ingroup Threads
- *
- * @param microseconds Number of microseconds to sleep.
- */
-void thread_sleep(int microseconds);
 
 /**
  * Creates a new thread.
@@ -520,7 +568,7 @@ void thread_yield();
  * @ingroup Threads
  *
  * @param thread Thread to detach
-*/
+ */
 void thread_detach(void *thread);
 
 /**
@@ -753,15 +801,6 @@ enum
 int time_season();
 
 /**
- * Fetches a sample from a high resolution timer and converts it in microseconds.
- *
- * @ingroup Time
- *
- * @return Current value of the timer in microseconds.
-*/
-int64_t time_get_microseconds();
-
-/**
  * @defgroup Network-General
  */
 
@@ -791,11 +830,14 @@ enum
 /**
  * @ingroup Network-General
  */
-typedef struct
+typedef struct NETADDR
 {
 	unsigned int type;
 	unsigned char ip[16];
 	unsigned short port;
+
+	bool operator==(const NETADDR &other) const;
+	bool operator!=(const NETADDR &other) const { return !(*this == other); }
 } NETADDR;
 
 #ifdef CONF_FAMILY_UNIX
@@ -1171,7 +1213,7 @@ void str_truncate(char *dst, int dst_size, const char *src, int truncation_len);
  * @param str Pointer to the string.
  *
  * @return Length of string in bytes excluding the zero termination.
-*/
+ */
 int str_length(const char *str);
 
 /**
@@ -1227,7 +1269,7 @@ void str_sanitize_cc(char *str);
  * @param str String to sanitize.
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 void str_sanitize(char *str);
 
 /**
@@ -1236,7 +1278,7 @@ void str_sanitize(char *str);
  * @param str String to sanitize.
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 void str_sanitize_filename(char *str);
 
 /**
@@ -1281,7 +1323,7 @@ const char *str_skip_to_whitespace_const(const char *str);
  * within the string.
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 char *str_skip_whitespaces(char *str);
 
 /**
@@ -1356,7 +1398,7 @@ int str_comp(const char *a, const char *b);
  * @return `> 0` - String a is greater than string b
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 int str_comp_num(const char *a, const char *b, int num);
 
 /**
@@ -1450,7 +1492,7 @@ const char *str_endswith(const char *str, const char *suffix);
  * @return The edit distance between the both strings.
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 int str_utf8_dist(const char *a, const char *b);
 
 /**
@@ -1468,7 +1510,7 @@ int str_utf8_dist(const char *a, const char *b);
  * @return The edit distance between the both strings.
  *
  * @remark The strings are treated as zero-terminated strings.
-*/
+ */
 int str_utf8_dist_buffer(const char *a, const char *b, int *buf, int buf_len);
 
 /*
@@ -1581,6 +1623,41 @@ void str_hex(char *dst, int dst_size, const void *data, int data_size);
 		- The contents of the buffer is only valid on success
 */
 int str_hex_decode(void *dst, int dst_size, const char *src);
+
+/*
+	Function: str_base64
+		Takes a datablock and generates the base64 encoding of it.
+
+	Parameters:
+		dst - Buffer to fill with base64 data
+		dst_size - Size of the buffer
+		data - Data to turn into base64
+		data - Size of the data
+
+	Remarks:
+		- The destination buffer will be zero-terminated
+*/
+void str_base64(char *dst, int dst_size, const void *data, int data_size);
+
+/*
+	Function: str_base64_decode
+		Takes a base64 string without any whitespace and correct
+		padding and returns a byte array.
+
+	Parameters:
+		dst - Buffer for the byte array
+		dst_size - Size of the buffer
+		data - String to decode
+
+	Returns:
+		<0 - Error
+		>= 0 - Success, length of the resulting byte buffer
+
+	Remarks:
+		- The contents of the buffer is only valid on success
+*/
+int str_base64_decode(void *dst, int dst_size, const char *data);
+
 /*
 	Function: str_timestamp
 		Copies a time stamp in the format year-month-day_hour-minute-second to the string.
@@ -1745,6 +1822,15 @@ int fs_storage_path(const char *appname, char *path, int max);
 int fs_is_dir(const char *path);
 
 /*
+    Function: fs_is_relative_path
+        Checks whether a given path is relative or absolute.
+
+    Returns:
+        Returns 1 if relative, 0 if absolute.
+*/
+int fs_is_relative_path(const char *path);
+
+/*
 	Function: fs_chdir
 		Changes current working directory
 
@@ -1898,17 +1984,6 @@ int open_link(const char *link);
 int open_file(const char *path);
 
 void swap_endian(void *data, unsigned elem_size, unsigned num);
-
-typedef void (*DBG_LOGGER)(const char *line, void *user);
-typedef void (*DBG_LOGGER_FINISH)(void *user);
-void dbg_logger(DBG_LOGGER logger, DBG_LOGGER_FINISH finish, void *user);
-
-typedef void (*DBG_LOGGER_ASSERTION)(void *user);
-void dbg_logger_assertion(DBG_LOGGER logger, DBG_LOGGER_FINISH finish, DBG_LOGGER_ASSERTION on_assert, void *user);
-
-void dbg_logger_stdout();
-void dbg_logger_debugger();
-void dbg_logger_file(const char *filename);
 
 typedef struct
 {
@@ -2129,21 +2204,6 @@ int str_utf8_decode(const char **ptr);
 int str_utf8_encode(char *ptr, int chr);
 
 /*
-	Function: str_utf16le_encode
-		Encode an utf8 character
-
-	Parameters:
-		ptr - Pointer to a buffer that should receive the data. Should be able to hold at least 4 bytes.
-
-	Returns:
-		Number of bytes put into the buffer.
-
-	Remarks:
-		- Does not do zero termination of the string.
-*/
-int str_utf16le_encode(char *ptr, int chr);
-
-/*
 	Function: str_utf8_check
 		Checks if a strings contains just valid utf8 characters.
 
@@ -2258,7 +2318,7 @@ void uint_to_bytes_be(unsigned char *bytes, unsigned value);
 /*
 	Function: pid
 		Returns the pid of the current process.
-	
+
 	Returns:
 		pid of the current process
 */
@@ -2420,9 +2480,62 @@ int os_version_str(char *version, int length);
 void init_exception_handler();
 void set_exception_handler_log_file(const char *log_file_path);
 #endif
-
-#if defined(__cplusplus)
 }
-#endif
+
+/**
+ * Fetches a sample from a high resolution timer and converts it in nanoseconds.
+ *
+ * @ingroup Time
+ *
+ * @return Current value of the timer in nanoseconds.
+ */
+std::chrono::nanoseconds time_get_nanoseconds();
+
+int net_socket_read_wait(NETSOCKET sock, std::chrono::nanoseconds nanoseconds);
+
+/**
+ * Fixes the command line arguments to be encoded in UTF-8 on all systems.
+ * This is a RAII wrapper for cmdline_fix and cmdline_free.
+ */
+class CCmdlineFix
+{
+	int m_Argc;
+	const char **m_ppArgv;
+
+public:
+	CCmdlineFix(int *pArgc, const char ***pppArgv)
+	{
+		cmdline_fix(pArgc, pppArgv);
+		m_Argc = *pArgc;
+		m_ppArgv = *pppArgv;
+	}
+	~CCmdlineFix()
+	{
+		cmdline_free(m_Argc, m_ppArgv);
+	}
+};
+
+/**
+ * Copies a string to a fixed-size array of chars.
+ *
+ * @ingroup Strings
+ *
+ * @param dst Array that shall receive the string.
+ * @param src String to be copied.
+ *
+ * @remark The strings are treated as zero-terminated strings.
+ * @remark Guarantees that dst string will contain zero-termination.
+ */
+template<int N>
+void str_copy(char (&dst)[N], const char *src)
+{
+	str_copy(dst, src, N);
+}
+
+template<>
+struct std::hash<NETADDR>
+{
+	size_t operator()(const NETADDR &Addr) const noexcept;
+};
 
 #endif

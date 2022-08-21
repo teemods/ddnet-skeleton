@@ -34,13 +34,13 @@ struct SBufferContainerInfo
 		//0: float, 1:integer
 		unsigned int m_FuncType;
 	};
-	std::vector<SAttribute> m_Attributes;
+	std::vector<SAttribute> m_vAttributes;
 };
 
 struct SQuadRenderInfo
 {
-	float m_aColor[4];
-	float m_aOffsets[2];
+	ColorRGBA m_Color;
+	vec2 m_Offsets;
 	float m_Rotation;
 	// allows easier upload for uniform buffers because of the alignment requirements
 	float m_Padding;
@@ -103,14 +103,9 @@ public:
 	uint32_t m_Format;
 };
 
-struct GL_SPoint
-{
-	float x, y;
-};
-struct GL_STexCoord
-{
-	float u, v;
-};
+typedef vec2 GL_SPoint;
+typedef vec2 GL_STexCoord;
+
 struct GL_STexCoord3D
 {
 	GL_STexCoord3D &operator=(const GL_STexCoord &TexCoord)
@@ -119,18 +114,21 @@ struct GL_STexCoord3D
 		v = TexCoord.v;
 		return *this;
 	}
+
+	GL_STexCoord3D &operator=(const vec3 &TexCoord)
+	{
+		u = TexCoord.u;
+		v = TexCoord.v;
+		w = TexCoord.w;
+		return *this;
+	}
+
 	float u, v, w;
 };
-struct GL_SColorf
-{
-	float r, g, b, a;
-};
 
+typedef ColorRGBA GL_SColorf;
 //use normalized color values
-struct GL_SColor
-{
-	unsigned char r, g, b, a;
-};
+typedef vector4_base<unsigned char> GL_SColor;
 
 struct GL_SVertex
 {
@@ -192,10 +190,10 @@ struct STWGraphicGPU
 
 	struct STWGraphicGPUItem
 	{
-		char m_Name[256];
+		char m_aName[256];
 		ETWGraphicsGPUType m_GPUType;
 	};
-	std::vector<STWGraphicGPUItem> m_GPUs;
+	std::vector<STWGraphicGPUItem> m_vGPUs;
 	STWGraphicGPUItem m_AutoGPU;
 };
 
@@ -207,7 +205,7 @@ namespace client_data7 {
 struct CDataSprite; // NOLINT(bugprone-forward-declaration-namespace)
 }
 
-typedef std::function<bool(uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &DstData)> TGLBackendReadPresentedImageData;
+typedef std::function<bool(uint32_t &Width, uint32_t &Height, uint32_t &Format, std::vector<uint8_t> &vDstData)> TGLBackendReadPresentedImageData;
 
 class IGraphics : public IInterface
 {
@@ -253,6 +251,7 @@ public:
 	int WindowWidth() const { return m_ScreenWidth / m_ScreenHiDPIScale; }
 	int WindowHeight() const { return m_ScreenHeight / m_ScreenHiDPIScale; }
 
+	virtual void WarnPngliteIncompatibleImages(bool Warn) = 0;
 	virtual void SetWindowParams(int FullscreenMode, bool IsBorderless, bool AllowResizing) = 0;
 	virtual bool SetWindowScreen(int Index) = 0;
 	virtual bool SetVSync(bool State) = 0;
@@ -303,7 +302,7 @@ public:
 	virtual void CopyTextureFromTextureBufferSub(uint8_t *pDestBuffer, int DestWidth, int DestHeight, uint8_t *pSourceBuffer, int SrcWidth, int SrcHeight, int ColorChannelCount, int SrcSubOffsetX, int SrcSubOffsetY, int SrcSubCopyWidth, int SrcSubCopyHeight) = 0;
 
 	virtual int UnloadTexture(CTextureHandle *pIndex) = 0;
-	virtual CTextureHandle LoadTextureRaw(int Width, int Height, int Format, const void *pData, int StoreFormat, int Flags, const char *pTexName = NULL) = 0;
+	virtual CTextureHandle LoadTextureRaw(int Width, int Height, int Format, const void *pData, int StoreFormat, int Flags, const char *pTexName = nullptr) = 0;
 	virtual int LoadTextureRawSub(CTextureHandle TextureID, int x, int y, int Width, int Height, int Format, const void *pData) = 0;
 	virtual CTextureHandle LoadTexture(const char *pFilename, int StorageType, int StoreFormat, int Flags) = 0;
 	virtual void TextureSet(CTextureHandle Texture) = 0;
@@ -324,11 +323,11 @@ public:
 	virtual void FlushVerticesTex3D() = 0;
 
 	// specific render functions
-	virtual void RenderTileLayer(int BufferContainerIndex, float *pColor, char **pOffsets, unsigned int *IndicedVertexDrawNum, size_t NumIndicesOffset) = 0;
-	virtual void RenderBorderTiles(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, int JumpIndex, unsigned int DrawNum) = 0;
-	virtual void RenderBorderTileLines(int BufferContainerIndex, float *pColor, char *pIndexBufferOffset, float *pOffset, float *pDir, unsigned int IndexDrawNum, unsigned int RedrawNum) = 0;
+	virtual void RenderTileLayer(int BufferContainerIndex, const ColorRGBA &Color, char **pOffsets, unsigned int *pIndicedVertexDrawNum, size_t NumIndicesOffset) = 0;
+	virtual void RenderBorderTiles(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, int JumpIndex, unsigned int DrawNum) = 0;
+	virtual void RenderBorderTileLines(int BufferContainerIndex, const ColorRGBA &Color, char *pIndexBufferOffset, const vec2 &Offset, const vec2 &Dir, unsigned int IndexDrawNum, unsigned int RedrawNum) = 0;
 	virtual void RenderQuadLayer(int BufferContainerIndex, SQuadRenderInfo *pQuadInfo, int QuadNum, int QuadOffset) = 0;
-	virtual void RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, float *pTextColor, float *pTextoutlineColor) = 0;
+	virtual void RenderText(int BufferContainerIndex, int TextQuadNum, int TextureSize, int TextureTextIndex, int TextureTextOutlineIndex, const ColorRGBA &TextColor, const ColorRGBA &TextOutlineColor) = 0;
 
 	// opengl 3.3 functions
 
@@ -433,7 +432,7 @@ public:
 
 	struct SRenderSpriteInfo
 	{
-		float m_Pos[2];
+		vec2 m_Pos;
 		float m_Scale;
 		float m_Rotation;
 	};
@@ -442,6 +441,38 @@ public:
 
 	virtual void QuadsDrawFreeform(const CFreeformItem *pArray, int Num) = 0;
 	virtual void QuadsText(float x, float y, float Size, const char *pText) = 0;
+
+	enum
+	{
+		CORNER_NONE = 0,
+		CORNER_TL = 1,
+		CORNER_TR = 2,
+		CORNER_BL = 4,
+		CORNER_BR = 8,
+		CORNER_ITL = 16,
+		CORNER_ITR = 32,
+		CORNER_IBL = 64,
+		CORNER_IBR = 128,
+
+		CORNER_T = CORNER_TL | CORNER_TR,
+		CORNER_B = CORNER_BL | CORNER_BR,
+		CORNER_R = CORNER_TR | CORNER_BR,
+		CORNER_L = CORNER_TL | CORNER_BL,
+
+		CORNER_IT = CORNER_ITL | CORNER_ITR,
+		CORNER_IB = CORNER_IBL | CORNER_IBR,
+		CORNER_IR = CORNER_ITR | CORNER_IBR,
+		CORNER_IL = CORNER_ITL | CORNER_IBL,
+
+		CORNER_ALL = CORNER_T | CORNER_B,
+		CORNER_INV_ALL = CORNER_IT | CORNER_IB
+	};
+	virtual void DrawRectExt(float x, float y, float w, float h, float r, int Corners) = 0;
+	virtual void DrawRectExt4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, float r, int Corners) = 0;
+	virtual int CreateRectQuadContainer(float x, float y, float w, float h, float r, int Corners) = 0;
+	virtual void DrawRect(float x, float y, float w, float h, ColorRGBA Color, int Corners, float Rounding) = 0;
+	virtual void DrawRect4(float x, float y, float w, float h, ColorRGBA ColorTopLeft, ColorRGBA ColorTopRight, ColorRGBA ColorBottomLeft, ColorRGBA ColorBottomRight, int Corners, float Rounding) = 0;
+	virtual void DrawCircle(float CenterX, float CenterY, float Radius, int Segments) = 0;
 
 	struct CColorVertex
 	{
@@ -453,8 +484,8 @@ public:
 	};
 	virtual void SetColorVertex(const CColorVertex *pArray, int Num) = 0;
 	virtual void SetColor(float r, float g, float b, float a) = 0;
-	virtual void SetColor(ColorRGBA rgb) = 0;
-	virtual void SetColor4(vec4 TopLeft, vec4 TopRight, vec4 BottomLeft, vec4 BottomRight) = 0;
+	virtual void SetColor(ColorRGBA Color) = 0;
+	virtual void SetColor4(ColorRGBA TopLeft, ColorRGBA TopRight, ColorRGBA BottomLeft, ColorRGBA BottomRight) = 0;
 	virtual void ChangeColorOfCurrentQuadVertices(float r, float g, float b, float a) = 0;
 	virtual void ChangeColorOfQuadVertices(int QuadOffset, unsigned char r, unsigned char g, unsigned char b, unsigned char a) = 0;
 

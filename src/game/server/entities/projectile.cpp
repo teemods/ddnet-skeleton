@@ -1,16 +1,15 @@
 /* (c) Magnus Auvinen. See licence.txt in the root of the distribution for more information. */
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #include "projectile.h"
-#include <game/generated/protocol.h>
-#include <game/server/gamecontext.h>
-#include <game/server/gamemodes/DDRace.h>
-#include <game/server/player.h>
-#include <game/version.h>
+#include "character.h"
 
 #include <engine/shared/config.h>
-#include <game/server/teams.h>
 
-#include "character.h"
+#include <game/generated/protocol.h>
+#include <game/mapitems.h>
+
+#include <game/server/gamecontext.h>
+#include <game/server/gamemodes/DDRace.h>
 
 CProjectile::CProjectile(
 	CGameWorld *pGameWorld,
@@ -170,7 +169,7 @@ void CProjectile::Snap(int SnappingClient)
 		pOwnerChar = GameServer()->GetPlayerChar(m_Owner);
 
 	if(pOwnerChar && pOwnerChar->IsAlive())
-		TeamMask = pOwnerChar->Teams()->TeamMask(pOwnerChar->Team(), -1, m_Owner);
+		TeamMask = pOwnerChar->TeamMask();
 
 	if(SnappingClient != SERVER_DEMO_CLIENT && m_Owner != -1 && !CmaskIsSet(TeamMask, SnappingClient))
 		return;
