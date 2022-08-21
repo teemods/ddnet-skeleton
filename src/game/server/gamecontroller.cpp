@@ -5,6 +5,7 @@
 #include <game/generated/protocol.h>
 #include <game/mapitems.h>
 #include <game/teamscore.h>
+#include <game/version.h>
 
 #include "gamecontext.h"
 #include "gamecontroller.h"
