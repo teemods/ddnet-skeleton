@@ -515,7 +515,7 @@ void CPlayer::OnPredictedInput(CNetObj_PlayerInput *pNewInput)
 	if(m_NumInputs == 20 && g_Config.m_SvClientSuggestion[0] != '\0' && GetClientVersion() <= VERSION_DDNET_OLD)
 		GameServer()->SendBroadcast(g_Config.m_SvClientSuggestion, m_ClientID);
 	else if(m_NumInputs == 200 && Server()->IsSixup(m_ClientID))
-		GameServer()->SendBroadcast("This server uses an experimental translation from Teeworlds 0.7 to 0.6. Please report bugs on ddnet.tw/discord", m_ClientID);
+		GameServer()->SendBroadcast("This server uses an experimental translation from Teeworlds 0.7 to 0.6. Please report bugs on ddnet.org/discord", m_ClientID);
 }
 
 void CPlayer::OnDirectInput(CNetObj_PlayerInput *pNewInput)
@@ -693,16 +693,24 @@ void CPlayer::UpdatePlaytime()
 
 void CPlayer::AfkTimer()
 {
-	if(g_Config.m_SvMaxAfkTime == 0)
-		return;
+	m_Afk = g_Config.m_SvMaxAfkTime != 0 && m_LastPlaytime < time_get() - time_freq() * g_Config.m_SvMaxAfkTime;
+}
 
-	if(m_LastPlaytime < time_get() - time_freq() * g_Config.m_SvMaxAfkTime)
+void CPlayer::SetAfk(bool Afk)
+{
+	if(g_Config.m_SvMaxAfkTime == 0)
 	{
-		m_Afk = true;
+		m_Afk = false;
 		return;
 	}
 
-	m_Afk = false;
+	m_Afk = Afk;
+
+	// Ensure that the AFK state is not reset again automatically
+	if(Afk)
+		m_LastPlaytime = time_get() - time_freq() * g_Config.m_SvMaxAfkTime - 1;
+	else
+		m_LastPlaytime = time_get();
 }
 
 int CPlayer::GetDefaultEmote() const

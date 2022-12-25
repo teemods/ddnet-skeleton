@@ -82,6 +82,13 @@ const CLinearScrollbarScale CUI::ms_LinearScrollbarScale;
 const CLogarithmicScrollbarScale CUI::ms_LogarithmicScrollbarScale(25);
 float CUI::ms_FontmodHeight = 0.8f;
 
+CUI *CUIElementBase::s_pUI = nullptr;
+
+IClient *CUIElementBase::Client() const { return s_pUI->Client(); }
+IGraphics *CUIElementBase::Graphics() const { return s_pUI->Graphics(); }
+IInput *CUIElementBase::Input() const { return s_pUI->Input(); }
+ITextRender *CUIElementBase::TextRender() const { return s_pUI->TextRender(); }
+
 void CUI::Init(IKernel *pKernel)
 {
 	m_pClient = pKernel->RequestInterface<IClient>();
@@ -90,6 +97,7 @@ void CUI::Init(IKernel *pKernel)
 	m_pTextRender = pKernel->RequestInterface<ITextRender>();
 	InitInputs(m_pInput->GetEventsRaw(), m_pInput->GetEventCountRaw());
 	CUIRect::Init(m_pGraphics);
+	CUIElementBase::Init(this);
 }
 
 void CUI::InitInputs(IInput::CEvent *pInputEventsArray, int *pInputEventCount)
@@ -234,6 +242,42 @@ void CUI::ConvertMouseMove(float *pX, float *pY, IInput::ECursorType CursorType)
 
 	*pX *= Factor;
 	*pY *= Factor;
+}
+
+bool CUI::ConsumeHotkey(EHotkey Hotkey)
+{
+	const bool Pressed = m_HotkeysPressed & Hotkey;
+	m_HotkeysPressed &= ~Hotkey;
+	return Pressed;
+}
+
+bool CUI::OnInput(const IInput::CEvent &Event)
+{
+	if(!Enabled())
+		return false;
+
+	if(Event.m_Flags & IInput::FLAG_PRESS)
+	{
+		unsigned LastHotkeysPressed = m_HotkeysPressed;
+		if(Event.m_Key == KEY_RETURN || Event.m_Key == KEY_KP_ENTER)
+			m_HotkeysPressed |= HOTKEY_ENTER;
+		else if(Event.m_Key == KEY_ESCAPE)
+			m_HotkeysPressed |= HOTKEY_ESCAPE;
+		else if(Event.m_Key == KEY_TAB && !Input()->AltIsPressed())
+			m_HotkeysPressed |= HOTKEY_TAB;
+		else if(Event.m_Key == KEY_DELETE)
+			m_HotkeysPressed |= HOTKEY_DELETE;
+		else if(Event.m_Key == KEY_UP)
+			m_HotkeysPressed |= HOTKEY_UP;
+		else if(Event.m_Key == KEY_DOWN)
+			m_HotkeysPressed |= HOTKEY_DOWN;
+		else if(Event.m_Key == KEY_MOUSE_WHEEL_UP)
+			m_HotkeysPressed |= HOTKEY_SCROLL_UP;
+		else if(Event.m_Key == KEY_MOUSE_WHEEL_DOWN)
+			m_HotkeysPressed |= HOTKEY_SCROLL_DOWN;
+		return LastHotkeysPressed != m_HotkeysPressed;
+	}
+	return false;
 }
 
 float CUI::ButtonColorMul(const void *pID)
@@ -407,9 +451,8 @@ float CUI::DoTextLabel(float x, float y, float w, float h, const char *pText, fl
 {
 	float AlignedSize = 0;
 	float MaxCharacterHeightInLine = 0;
-	float tw = std::numeric_limits<float>::max();
 	float MaxTextWidth = LabelProps.m_MaxWidth != -1 ? LabelProps.m_MaxWidth : w;
-	tw = TextRender()->TextWidth(0, Size, pText, -1, LabelProps.m_MaxWidth, &AlignedSize, &MaxCharacterHeightInLine);
+	float tw = TextRender()->TextWidth(0, Size, pText, -1, LabelProps.m_MaxWidth, &AlignedSize, &MaxCharacterHeightInLine);
 	while(tw > MaxTextWidth + 0.001f)
 	{
 		if(!LabelProps.m_EnableWidthCheck)
@@ -476,13 +519,12 @@ void CUI::DoLabel(const CUIRect *pRect, const char *pText, float Size, int Align
 	DoTextLabel(pRect->x, pRect->y, pRect->w, pRect->h, pText, Size, Align, LabelProps);
 }
 
-void CUI::DoLabel(CUIElement::SUIElementRect &RectEl, const CUIRect *pRect, const char *pText, float Size, int Align, const SLabelProperties &LabelProps, int StrLen, CTextCursor *pReadCursor)
+void CUI::DoLabel(CUIElement::SUIElementRect &RectEl, const CUIRect *pRect, const char *pText, float Size, int Align, const SLabelProperties &LabelProps, int StrLen, const CTextCursor *pReadCursor)
 {
 	float AlignedSize = 0;
 	float MaxCharacterHeightInLine = 0;
-	float tw = std::numeric_limits<float>::max();
 	float MaxTextWidth = LabelProps.m_MaxWidth != -1 ? LabelProps.m_MaxWidth : pRect->w;
-	tw = TextRender()->TextWidth(0, Size, pText, -1, LabelProps.m_MaxWidth, &AlignedSize, &MaxCharacterHeightInLine);
+	float tw = TextRender()->TextWidth(0, Size, pText, -1, LabelProps.m_MaxWidth, &AlignedSize, &MaxCharacterHeightInLine);
 	while(tw > MaxTextWidth + 0.001f)
 	{
 		if(!LabelProps.m_EnableWidthCheck)
@@ -539,7 +581,7 @@ void CUI::DoLabel(CUIElement::SUIElementRect &RectEl, const CUIRect *pRect, cons
 	RectEl.m_Cursor = Cursor;
 }
 
-void CUI::DoLabelStreamed(CUIElement::SUIElementRect &RectEl, float x, float y, float w, float h, const char *pText, float Size, int Align, float MaxWidth, int AlignVertically, bool StopAtEnd, int StrLen, CTextCursor *pReadCursor)
+void CUI::DoLabelStreamed(CUIElement::SUIElementRect &RectEl, float x, float y, float w, float h, const char *pText, float Size, int Align, float MaxWidth, int AlignVertically, bool StopAtEnd, int StrLen, const CTextCursor *pReadCursor)
 {
 	bool NeedsRecreate = false;
 	bool ColorChanged = RectEl.m_TextColor != TextRender()->GetTextColor() || RectEl.m_TextOutlineColor != TextRender()->GetTextOutlineColor();
@@ -595,7 +637,7 @@ void CUI::DoLabelStreamed(CUIElement::SUIElementRect &RectEl, float x, float y, 
 		TextRender()->RenderTextContainer(RectEl.m_UITextContainer, ColorText, ColorTextOutline);
 }
 
-void CUI::DoLabelStreamed(CUIElement::SUIElementRect &RectEl, const CUIRect *pRect, const char *pText, float Size, int Align, float MaxWidth, int AlignVertically, bool StopAtEnd, int StrLen, CTextCursor *pReadCursor)
+void CUI::DoLabelStreamed(CUIElement::SUIElementRect &RectEl, const CUIRect *pRect, const char *pText, float Size, int Align, float MaxWidth, int AlignVertically, bool StopAtEnd, int StrLen, const CTextCursor *pReadCursor)
 {
 	DoLabelStreamed(RectEl, pRect->x, pRect->y, pRect->w, pRect->h, pText, Size, Align, MaxWidth, AlignVertically, StopAtEnd, StrLen, pReadCursor);
 }
@@ -628,8 +670,8 @@ bool CUI::DoEditBox(const void *pID, const CUIRect *pRect, char *pStr, unsigned 
 
 		m_CurCursor = minimum(str_length(pStr), m_CurCursor);
 
-		bool IsShiftPressed = Input()->KeyIsPressed(KEY_LSHIFT) || Input()->KeyIsPressed(KEY_RSHIFT);
-		bool IsModPressed = Input()->ModifierIsPressed();
+		const bool IsShiftPressed = Input()->ShiftIsPressed();
+		const bool IsModPressed = Input()->ModifierIsPressed();
 
 		if(Enabled() && !IsShiftPressed && IsModPressed && Input()->KeyPress(KEY_V))
 		{
@@ -1057,7 +1099,7 @@ float CUI::DoScrollbarV(const void *pID, const CUIRect *pRect, float Current)
 		if(MouseButton(0))
 		{
 			Grabbed = true;
-			if(Input()->KeyIsPressed(KEY_LSHIFT) || Input()->KeyIsPressed(KEY_RSHIFT))
+			if(Input()->ShiftIsPressed())
 				m_MouseSlow = true;
 		}
 		else
@@ -1137,7 +1179,7 @@ float CUI::DoScrollbarH(const void *pID, const CUIRect *pRect, float Current, co
 		if(MouseButton(0))
 		{
 			Grabbed = true;
-			if(Input()->KeyIsPressed(KEY_LSHIFT) || Input()->KeyIsPressed(KEY_RSHIFT))
+			if(Input()->ShiftIsPressed())
 				m_MouseSlow = true;
 		}
 		else

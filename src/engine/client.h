@@ -84,6 +84,7 @@ protected:
 	float m_aPredIntraTick[NUM_DUMMIES];
 
 	float m_LocalTime;
+	float m_GlobalTime;
 	float m_RenderFrameTime;
 
 	int m_GameTickSpeed;
@@ -146,6 +147,7 @@ public:
 	// other time access
 	inline float RenderFrameTime() const { return m_RenderFrameTime; }
 	inline float LocalTime() const { return m_LocalTime; }
+	inline float GlobalTime() const { return m_GlobalTime; }
 	inline float FrameTimeAvg() const { return m_FrameTimeAvg; }
 
 	// actions
@@ -219,10 +221,9 @@ public:
 
 	// TODO: Refactor: should redo this a bit i think, too many virtual calls
 	virtual int SnapNumItems(int SnapID) const = 0;
-	virtual void *SnapFindItem(int SnapID, int Type, int ID) const = 0;
+	virtual const void *SnapFindItem(int SnapID, int Type, int ID) const = 0;
 	virtual void *SnapGetItem(int SnapID, int Index, CSnapItem *pItem) const = 0;
 	virtual int SnapItemSize(int SnapID, int Index) const = 0;
-	virtual void SnapInvalidateItem(int SnapID, int Index) = 0;
 
 	virtual void SnapSetStaticsize(int ItemType, int Size) = 0;
 

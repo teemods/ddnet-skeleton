@@ -267,11 +267,11 @@ void CCharacter::HandleNinja()
 
 		// check if we Hit anything along the way
 		{
-			CCharacter *apEnts[MAX_CLIENTS];
+			CEntity *apEnts[MAX_CLIENTS];
 			vec2 Dir = m_Pos - OldPos;
 			float Radius = GetProximityRadius() * 2.0f;
 			vec2 Center = OldPos + Dir * 0.5f;
-			int Num = GameServer()->m_World.FindEntities(Center, Radius, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+			int Num = GameServer()->m_World.FindEntities(Center, Radius, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
 			// check that we're not in solo part
 			if(Teams()->m_Core.GetSolo(m_pPlayer->GetCID()))
@@ -279,38 +279,39 @@ void CCharacter::HandleNinja()
 
 			for(int i = 0; i < Num; ++i)
 			{
-				if(apEnts[i] == this)
+				auto *pChr = static_cast<CCharacter *>(apEnts[i]);
+				if(pChr == this)
 					continue;
 
 				// Don't hit players in other teams
-				if(Team() != apEnts[i]->Team())
+				if(Team() != pChr->Team())
 					continue;
 
 				// Don't hit players in solo parts
-				if(Teams()->m_Core.GetSolo(apEnts[i]->m_pPlayer->GetCID()))
+				if(Teams()->m_Core.GetSolo(pChr->m_pPlayer->GetCID()))
 					return;
 
 				// make sure we haven't Hit this object before
 				bool bAlreadyHit = false;
 				for(int j = 0; j < m_NumObjectsHit; j++)
 				{
-					if(m_apHitObjects[j] == apEnts[i])
+					if(m_apHitObjects[j] == pChr)
 						bAlreadyHit = true;
 				}
 				if(bAlreadyHit)
 					continue;
 
 				// check so we are sufficiently close
-				if(distance(apEnts[i]->m_Pos, m_Pos) > (GetProximityRadius() * 2.0f))
+				if(distance(pChr->m_Pos, m_Pos) > (GetProximityRadius() * 2.0f))
 					continue;
 
 				// Hit a player, give them damage and stuffs...
-				GameServer()->CreateSound(apEnts[i]->m_Pos, SOUND_NINJA_HIT, TeamMask());
+				GameServer()->CreateSound(pChr->m_Pos, SOUND_NINJA_HIT, TeamMask());
 				// set his velocity to fast upward (for now)
 				if(m_NumObjectsHit < 10)
-					m_apHitObjects[m_NumObjectsHit++] = apEnts[i];
+					m_apHitObjects[m_NumObjectsHit++] = pChr;
 
-				apEnts[i]->TakeDamage(vec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, m_pPlayer->GetCID(), WEAPON_NINJA);
+				pChr->TakeDamage(vec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, m_pPlayer->GetCID(), WEAPON_NINJA);
 			}
 		}
 
@@ -444,14 +445,14 @@ void CCharacter::FireWeapon()
 		if(m_Core.m_HammerHitDisabled)
 			break;
 
-		CCharacter *apEnts[MAX_CLIENTS];
+		CEntity *apEnts[MAX_CLIENTS];
 		int Hits = 0;
-		int Num = GameServer()->m_World.FindEntities(ProjStartPos, GetProximityRadius() * 0.5f, (CEntity **)apEnts,
+		int Num = GameServer()->m_World.FindEntities(ProjStartPos, GetProximityRadius() * 0.5f, apEnts,
 			MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
 		for(int i = 0; i < Num; ++i)
 		{
-			CCharacter *pTarget = apEnts[i];
+			auto *pTarget = static_cast<CCharacter *>(apEnts[i]);
 
 			//if ((pTarget == this) || Collision()->IntersectLine(ProjStartPos, pTarget->m_Pos, NULL, NULL))
 			if((pTarget == this || (pTarget->IsAlive() && !CanCollide(pTarget->GetPlayer()->GetCID()))))
@@ -522,7 +523,6 @@ void CCharacter::FireWeapon()
 				Lifetime, //Span
 				false, //Freeze
 				false, //Explosive
-				0, //Force
 				-1 //SoundImpact
 			);
 
@@ -586,7 +586,6 @@ void CCharacter::FireWeapon()
 			Lifetime, //Span
 			false, //Freeze
 			true, //Explosive
-			0, //Force
 			SOUND_GRENADE_EXPLODE //SoundImpact
 		); //SoundImpact
 
@@ -765,12 +764,12 @@ void CCharacter::PreTick()
 	Antibot()->OnCharacterTick(m_pPlayer->GetCID());
 
 	m_Core.m_Input = m_Input;
-	m_Core.Tick(true, !g_Config.m_SvNoWeakHookAndBounce);
+	m_Core.Tick(true, !g_Config.m_SvNoWeakHook);
 }
 
 void CCharacter::Tick()
 {
-	if(g_Config.m_SvNoWeakHookAndBounce)
+	if(g_Config.m_SvNoWeakHook)
 	{
 		if(m_Paused)
 			return;
@@ -1056,7 +1055,7 @@ void CCharacter::SnapCharacter(int SnappingClient, int ID)
 			AmmoCount = (!m_FreezeTime) ? m_Core.m_aWeapons[m_Core.m_ActiveWeapon].m_Ammo : 0;
 	}
 
-	if(GetPlayer()->m_Afk || GetPlayer()->IsPaused())
+	if(GetPlayer()->IsAfk() || GetPlayer()->IsPaused())
 	{
 		if(m_FreezeTime > 0 || m_FreezeTime == -1 || m_Core.m_DeepFrozen || m_Core.m_LiveFrozen)
 			Emote = EMOTE_NORMAL;
@@ -1211,7 +1210,7 @@ void CCharacter::Snap(int SnappingClient)
 	pDDNetCharacter->m_TeleCheckpoint = m_TeleCheckpoint;
 	pDDNetCharacter->m_StrongWeakID = m_StrongWeakID;
 
-	// Display Informations
+	// Display Information
 	pDDNetCharacter->m_JumpedTotal = m_Core.m_JumpedTotal;
 	pDDNetCharacter->m_NinjaActivationTick = m_Core.m_Ninja.m_ActivationTick;
 	pDDNetCharacter->m_FreezeStart = m_Core.m_FreezeStart;

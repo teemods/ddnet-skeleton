@@ -7,6 +7,7 @@
 #include <base/vmath.h>
 
 #include <chrono>
+#include <unordered_set>
 #include <vector>
 
 #include <engine/console.h>
@@ -46,7 +47,7 @@ public:
 	unsigned int m_HSVColor;
 };
 
-// compnent to fetch keypresses, override all other input
+// component to fetch keypresses, override all other input
 class CMenusKeyBinder : public CComponent
 {
 public:
@@ -78,7 +79,7 @@ class CMenus : public CComponent
 	char m_aLocalStringHelper[1024];
 
 	int DoButton_DemoPlayer(const void *pID, const char *pText, int Checked, const CUIRect *pRect);
-	int DoButton_Sprite(CButtonContainer *pButtonContainer, int ImageID, int SpriteID, int Checked, const CUIRect *pRect, int Corners);
+	int DoButton_FontIcon(CButtonContainer *pButtonContainer, const char *pText, int Checked, const CUIRect *pRect, int Corners, bool Enabled = true);
 	int DoButton_Toggle(const void *pID, int Checked, const CUIRect *pRect, bool Active);
 	int DoButton_Menu(CButtonContainer *pButtonContainer, const char *pText, int Checked, const CUIRect *pRect, const char *pImageName = nullptr, int Corners = IGraphics::CORNER_ALL, float r = 5.0f, float FontFactor = 0.0f, vec4 ColorHot = vec4(1.0f, 1.0f, 1.0f, 0.75f), vec4 Color = vec4(1, 1, 1, 0.5f), int AlignVertically = 1, bool CheckForActiveColorPicker = false);
 	int DoButton_MenuTab(CButtonContainer *pButtonContainer, const char *pText, int Checked, const CUIRect *pRect, int Corners, SUIAnimator *pAnimator = nullptr, const ColorRGBA *pDefaultColor = nullptr, const ColorRGBA *pActiveColor = nullptr, const ColorRGBA *pHoverColor = nullptr, float EdgeRounding = 10, int AlignVertically = 1);
@@ -87,12 +88,13 @@ class CMenus : public CComponent
 	int DoButton_CheckBox(const void *pID, const char *pText, int Checked, const CUIRect *pRect);
 	int DoButton_CheckBoxAutoVMarginAndSet(const void *pID, const char *pText, int *pValue, CUIRect *pRect, float VMargin);
 	int DoButton_CheckBox_Number(const void *pID, const char *pText, int Checked, const CUIRect *pRect);
+
 	ColorHSLA DoLine_ColorPicker(CButtonContainer *pResetID, float LineSize, float WantedPickerPosition, float LabelSize, float BottomMargin, CUIRect *pMainRect, const char *pText, unsigned int *pColorValue, ColorRGBA DefaultColor, bool CheckBoxSpacing = true, bool UseCheckBox = false, int *pCheckBoxValue = nullptr);
-	void DoLaserPreview(const CUIRect *pRect, ColorHSLA OutlineColor, ColorHSLA InnerColor);
+	void DoLaserPreview(const CUIRect *pRect, ColorHSLA OutlineColor, ColorHSLA InnerColor, const int LaserType);
 	int DoValueSelector(void *pID, CUIRect *pRect, const char *pLabel, bool UseScroll, int Current, int Min, int Max, int Step, float Scale, bool IsHex, float Round, ColorRGBA *pColor);
 	int DoButton_GridHeader(const void *pID, const char *pText, int Checked, const CUIRect *pRect);
 
-	void DoButton_KeySelect(const void *pID, const char *pText, int Checked, const CUIRect *pRect);
+	void DoButton_KeySelect(const void *pID, const char *pText, const CUIRect *pRect);
 	int DoKeyReader(void *pID, const CUIRect *pRect, int Key, int ModifierCombination, int *pNewModifierCombination);
 
 	void DoSettingsControlsButtons(int Start, int Stop, CUIRect View);
@@ -113,14 +115,14 @@ class CMenus : public CComponent
 		Text.HMargin(pRect->h >= 20.0f ? 2.0f : 1.0f, &Text);
 		Text.HMargin((Text.h * FontFactor) / 2.0f, &Text);
 
-		if(!UIElement.AreRectsInit() || HintRequiresStringCheck || HintCanChangePositionOrSize || UIElement.Get(0)->m_UITextContainer == -1)
+		if(!UIElement.AreRectsInit() || HintRequiresStringCheck || HintCanChangePositionOrSize || UIElement.Rect(0)->m_UITextContainer == -1)
 		{
-			bool NeedsRecalc = !UIElement.AreRectsInit() || UIElement.Get(0)->m_UITextContainer == -1;
+			bool NeedsRecalc = !UIElement.AreRectsInit() || UIElement.Rect(0)->m_UITextContainer == -1;
 			if(HintCanChangePositionOrSize)
 			{
 				if(UIElement.AreRectsInit())
 				{
-					if(UIElement.Get(0)->m_X != pRect->x || UIElement.Get(0)->m_Y != pRect->y || UIElement.Get(0)->m_Width != pRect->w || UIElement.Get(0)->m_Y != pRect->h)
+					if(UIElement.Rect(0)->m_X != pRect->x || UIElement.Rect(0)->m_Y != pRect->y || UIElement.Rect(0)->m_Width != pRect->w || UIElement.Rect(0)->m_Y != pRect->h)
 					{
 						NeedsRecalc = true;
 					}
@@ -132,7 +134,7 @@ class CMenus : public CComponent
 				if(UIElement.AreRectsInit())
 				{
 					pText = GetTextLambda();
-					if(str_comp(UIElement.Get(0)->m_Text.c_str(), pText) != 0)
+					if(str_comp(UIElement.Rect(0)->m_Text.c_str(), pText) != 0)
 					{
 						NeedsRecalc = true;
 					}
@@ -158,7 +160,7 @@ class CMenus : public CComponent
 						Color.a *= UI()->ButtonColorMulDefault();
 					Graphics()->SetColor(Color);
 
-					CUIElement::SUIElementRect &NewRect = *UIElement.Get(i);
+					CUIElement::SUIElementRect &NewRect = *UIElement.Rect(i);
 					NewRect.m_UIRectQuadContainer = Graphics()->CreateRectQuadContainer(pRect->x, pRect->y, pRect->w, pRect->h, r, Corners);
 
 					NewRect.m_X = pRect->x;
@@ -185,11 +187,11 @@ class CMenus : public CComponent
 		else if(UI()->HotItem() == pID)
 			Index = 1;
 		Graphics()->TextureClear();
-		Graphics()->RenderQuadContainer(UIElement.Get(Index)->m_UIRectQuadContainer, -1);
+		Graphics()->RenderQuadContainer(UIElement.Rect(Index)->m_UIRectQuadContainer, -1);
 		ColorRGBA ColorText(TextRender()->DefaultTextColor());
 		ColorRGBA ColorTextOutline(TextRender()->DefaultTextOutlineColor());
-		if(UIElement.Get(0)->m_UITextContainer != -1)
-			TextRender()->RenderTextContainer(UIElement.Get(0)->m_UITextContainer, ColorText, ColorTextOutline);
+		if(UIElement.Rect(0)->m_UITextContainer != -1)
+			TextRender()->RenderTextContainer(UIElement.Rect(0)->m_UITextContainer, ColorText, ColorTextOutline);
 		return UI()->DoButtonLogic(pID, Checked, pRect);
 	}
 
@@ -322,7 +324,33 @@ protected:
 	CUIElement m_RefreshButton;
 	CUIElement m_ConnectButton;
 
-	void PopupMessage(const char *pTopic, const char *pBody, const char *pButton);
+	// generic popups
+	typedef void (CMenus::*FPopupButtonCallback)();
+	void DefaultButtonCallback()
+	{
+		// do nothing
+	}
+	enum
+	{
+		BUTTON_CONFIRM = 0, // confirm / yes / close / ok
+		BUTTON_CANCEL, // cancel / no
+		NUM_BUTTONS
+	};
+	char m_aPopupTitle[128];
+	char m_aPopupMessage[256];
+	struct
+	{
+		char m_aLabel[64];
+		int m_NextPopup;
+		FPopupButtonCallback m_pfnCallback;
+	} m_aPopupButtons[NUM_BUTTONS];
+
+	void PopupMessage(const char *pTitle, const char *pMessage,
+		const char *pButtonLabel, int NextPopup = POPUP_NONE, FPopupButtonCallback pfnButtonCallback = &CMenus::DefaultButtonCallback);
+	void PopupConfirm(const char *pTitle, const char *pMessage,
+		const char *pConfirmButtonLabel, const char *pCancelButtonLabel,
+		FPopupButtonCallback pfnConfirmButtonCallback = &CMenus::DefaultButtonCallback, int ConfirmNextPopup = POPUP_NONE,
+		FPopupButtonCallback pfnCancelButtonCallback = &CMenus::DefaultButtonCallback, int CancelNextPopup = POPUP_NONE);
 
 	// TODO: this is a bit ugly but.. well.. yeah
 	enum
@@ -348,11 +376,6 @@ protected:
 	bool m_NeedSendDummyinfo;
 	int m_SettingPlayerPage;
 
-	//
-	bool m_EscapePressed;
-	bool m_EnterPressed;
-	bool m_DeletePressed;
-
 	// for map download popup
 	int64_t m_DownloadLastCheckTime;
 	int m_DownloadLastCheckSize;
@@ -377,7 +400,7 @@ protected:
 	struct CDemoItem
 	{
 		char m_aFilename[IO_MAX_PATH_LENGTH];
-		char m_aName[128];
+		char m_aName[IO_MAX_PATH_LENGTH];
 		bool m_IsDir;
 		int m_StorageType;
 		time_t m_Date;
@@ -418,7 +441,7 @@ protected:
 			const CDemoItem &Right = g_Config.m_BrDemoSortOrder ? *this : Other;
 
 			if(g_Config.m_BrDemoSort == SORT_DEMONAME)
-				return str_comp_nocase(Left.m_aFilename, Right.m_aFilename) < 0;
+				return str_comp_filenames(Left.m_aFilename, Right.m_aFilename) < 0;
 			if(g_Config.m_BrDemoSort == SORT_DATE)
 				return Left.m_Date < Right.m_Date;
 
@@ -437,8 +460,8 @@ protected:
 		}
 	};
 
-	char m_aCurrentDemoFolder[256];
-	char m_aCurrentDemoFile[64];
+	char m_aCurrentDemoFolder[IO_MAX_PATH_LENGTH];
+	char m_aCurrentDemoFile[IO_MAX_PATH_LENGTH];
 	int m_DemolistSelectedIndex;
 	bool m_DemolistSelectedIsDir;
 	int m_DemolistStorageType;
@@ -447,7 +470,6 @@ protected:
 	std::chrono::nanoseconds m_DemoPopulateStartTime{0};
 
 	void DemolistOnUpdate(bool Reset);
-	//void DemolistPopulate();
 	static int DemolistFetchCallback(const CFsFileInfo *pInfo, int IsDir, int StorageType, void *pUser);
 
 	// friends
@@ -486,8 +508,9 @@ protected:
 
 	// found in menus.cpp
 	int Render();
-	//void render_background();
-	//void render_loading(float percent);
+#if defined(CONF_VIDEORECORDER)
+	void PopupConfirmDemoReplaceVideo();
+#endif
 	int RenderMenubar(CUIRect r);
 	void RenderNews(CUIRect MainView);
 	static void ConchainUpdateMusicState(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
@@ -497,31 +520,47 @@ protected:
 	static bool DemoFilterChat(const void *pData, int Size, void *pUser);
 	bool FetchHeader(CDemoItem &Item);
 	void FetchAllHeaders();
+	void HandleDemoSeeking(float PositionToSeek, float TimeToSeek);
 	void RenderDemoPlayer(CUIRect MainView);
 	void RenderDemoList(CUIRect MainView);
+	void PopupConfirmDeleteDemo();
 
 	// found in menus_start.cpp
 	void RenderStartMenu(CUIRect MainView);
 
 	// found in menus_ingame.cpp
 	void RenderGame(CUIRect MainView);
+	void PopupConfirmDisconnect();
+	void PopupConfirmDisconnectDummy();
 	void RenderPlayers(CUIRect MainView);
 	void RenderServerInfo(CUIRect MainView);
 	void RenderServerControl(CUIRect MainView);
 	bool RenderServerControlKick(CUIRect MainView, bool FilterSpectators);
 	bool RenderServerControlServer(CUIRect MainView);
+	void RenderIngameHint();
 
 	// found in menus_browser.cpp
 	int m_SelectedIndex;
 	int m_DoubleClickIndex;
 	int m_ScrollOffset;
 	void RenderServerbrowserServerList(CUIRect View);
+	void Connect(const char *pAddress);
+	void PopupConfirmSwitchServer();
 	void RenderServerbrowserServerDetail(CUIRect View);
 	void RenderServerbrowserFilters(CUIRect View);
 	void RenderServerbrowserFriends(CUIRect View);
+	void PopupConfirmRemoveFriend();
 	void RenderServerbrowser(CUIRect MainView);
 	static void ConchainFriendlistUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 	static void ConchainServerbrowserUpdate(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
+
+	// skin favorite list
+	bool m_SkinFavoritesChanged = false;
+	std::unordered_set<std::string> m_SkinFavorites;
+	static void Con_AddFavoriteSkin(IConsole::IResult *pResult, void *pUserData);
+	static void Con_RemFavoriteSkin(IConsole::IResult *pResult, void *pUserData);
+	static void ConfigSaveCallback(IConfigManager *pConfigManager, void *pUserData);
+	void OnConfigSave(IConfigManager *pConfigManager);
 
 	// found in menus_settings.cpp
 	void RenderLanguageSelection(CUIRect MainView);
@@ -531,6 +570,7 @@ protected:
 	void RenderSettingsDummyPlayer(CUIRect MainView);
 	void RenderSettingsTee(CUIRect MainView);
 	void RenderSettingsControls(CUIRect MainView);
+	void ResetSettingsControls();
 	void RenderSettingsGraphics(CUIRect MainView);
 	void RenderSettingsSound(CUIRect MainView);
 	void RenderSettings(CUIRect MainView);
@@ -563,6 +603,7 @@ public:
 	void KillServer();
 
 	virtual void OnInit() override;
+	void OnConsoleInit() override;
 
 	virtual void OnStateChange(int NewState, int OldState) override;
 	virtual void OnReset() override;
@@ -632,6 +673,7 @@ public:
 	int DoButton_CheckBox_Tristate(const void *pID, const char *pText, TRISTATE Checked, const CUIRect *pRect);
 	std::vector<CDemoItem> m_vDemos;
 	void DemolistPopulate();
+	void DemoSeekTick(IDemoPlayer::ETickOffset TickOffset);
 	bool m_Dummy;
 
 	const char *GetCurrentDemoFolder() const { return m_aCurrentDemoFolder; }
@@ -679,26 +721,19 @@ public:
 	enum
 	{
 		POPUP_NONE = 0,
+		POPUP_MESSAGE, // generic message popup (one button)
+		POPUP_CONFIRM, // generic confirmation popup (two buttons)
 		POPUP_FIRST_LAUNCH,
 		POPUP_POINTS,
 		POPUP_CONNECTING,
-		POPUP_MESSAGE,
 		POPUP_DISCONNECTED,
-		POPUP_PURE,
 		POPUP_LANGUAGE,
 		POPUP_COUNTRY,
-		POPUP_DELETE_DEMO,
 		POPUP_RENAME_DEMO,
 		POPUP_RENDER_DEMO,
-		POPUP_REPLACE_VIDEO,
-		POPUP_REMOVE_FRIEND,
-		POPUP_SOUNDERROR,
 		POPUP_PASSWORD,
 		POPUP_QUIT,
-		POPUP_DISCONNECT,
-		POPUP_DISCONNECT_DUMMY,
 		POPUP_WARNING,
-		POPUP_SWITCH_SERVER,
 
 		// demo player states
 		DEMOPLAYER_NONE = 0,
@@ -708,6 +743,7 @@ public:
 private:
 	static int GhostlistFetchCallback(const char *pName, int IsDir, int StorageType, void *pUser);
 	void SetMenuPage(int NewPage);
+	void RefreshBrowserTab(int UiPage);
 	bool HandleListInputs(const CUIRect &View, float &ScrollValue, float ScrollAmount, int *pScrollOffset, float ElemHeight, int &SelectedIndex, int NumElems);
 
 	// found in menus_ingame.cpp

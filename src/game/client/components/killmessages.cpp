@@ -100,6 +100,9 @@ void CKillMessages::CreateKillmessageNamesIfNotCreated(CKillMsg &Kill)
 
 void CKillMessages::OnMessage(int MsgType, void *pRawMsg)
 {
+	if(m_pClient->m_SuppressEvents)
+		return;
+
 	if(MsgType == NETMSGTYPE_SV_KILLMSG)
 	{
 		CNetMsg_Sv_KillMsg *pMsg = (CNetMsg_Sv_KillMsg *)pRawMsg;
@@ -299,7 +302,7 @@ void CKillMessages::RefindSkins()
 
 		if(m_aKillmsgs[r].m_KillerID >= 0)
 		{
-			CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_KillerID];
+			const CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_KillerID];
 			if(Client.m_aSkinName[0] != '\0')
 				m_aKillmsgs[r].m_KillerRenderInfo = Client.m_RenderInfo;
 			else
@@ -308,7 +311,7 @@ void CKillMessages::RefindSkins()
 
 		if(m_aKillmsgs[r].m_VictimID >= 0)
 		{
-			CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_VictimID];
+			const CGameClient::CClientData &Client = GameClient()->m_aClients[m_aKillmsgs[r].m_VictimID];
 			if(Client.m_aSkinName[0] != '\0')
 				m_aKillmsgs[r].m_VictimRenderInfo = Client.m_RenderInfo;
 			else

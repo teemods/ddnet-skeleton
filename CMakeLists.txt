@@ -116,7 +116,7 @@ option(AUTOUPDATE "Enable the autoupdater" OFF)
 option(INFORM_UPDATE "Inform about available updates" ON)
 option(VIDEORECORDER "Enable video recording support via FFmpeg" ON)
 option(UPNP "Enable UPnP support" OFF)
-option(ANTIBOT "Enable support for a dynamic anticheat library" OFF)
+option(ANTIBOT "Enable support for a dynamic anticheat library (not provided, see src/antibot for interface if you want to implement your own)" OFF)
 option(HEADLESS_CLIENT "Build the client without graphics" OFF)
 option(CLIENT "Compile client" ON)
 option(SERVER "Compile server" ON)
@@ -332,6 +332,7 @@ if(NOT MSVC AND NOT HAIKU)
     )
   endif()
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wextra)
+  add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-psabi) # parameter passing for argument of type ‘__gnu_cxx::__normal_iterator<CCommandProcessorFragment_Vulkan::SMemoryBlock<1>*, std::vector<CCommandProcessorFragment_Vulkan::SMemoryBlock<1>, std::allocator<CCommandProcessorFragment_Vulkan::SMemoryBlock<1> > > >’ changed in GCC 7.1
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-unused-parameter)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wno-missing-field-initializers)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wformat=2) # Warn about format strings.
@@ -347,8 +348,8 @@ if(NOT MSVC AND NOT HAIKU)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wthread-safety-negative)
   add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wsuggest-override)
   add_linker_flag_if_supported(OUR_FLAGS_LINK -Wno-alloc-size-larger-than) # save.cpp with LTO
-  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdouble-promotion) # Many occurences
-  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wnull-dereference) # Many occurences
+  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wdouble-promotion) # Many occurrences
+  # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wnull-dereference) # Many occurrences
   # add_cxx_compiler_flag_if_supported(OUR_FLAGS_OWN -Wuseless-cast) # TODO: Enable for C++ code except gtest
 endif()
 
@@ -547,6 +548,7 @@ find_package(Opus)
 find_package(Opusfile)
 find_package(PNG)
 find_package(PythonInterp 3)
+find_package(Rust)
 find_package(SDL2)
 find_package(SQLite3)
 if(DISCORD)
@@ -575,6 +577,7 @@ if(TARGET_OS AND TARGET_OS STREQUAL "mac")
 endif()
 
 set(VULKAN_SHADER_FILE_LIST "" CACHE STRING "Vulkan shader file list")
+set(VULKAN_SHADER_FILE_SHA256 "" CACHE STRING "Vulkan shader file hash")
 if(CLIENT AND VULKAN)
   find_package(Vulkan)
   include(cmake/BuildVulkanShaders.cmake)
@@ -590,6 +593,7 @@ if(TARGET_OS STREQUAL "mac")
 endif()
 message(STATUS ${TARGET})
 message(STATUS "Compiler: ${CMAKE_CXX_COMPILER}")
+message(STATUS "Rust version: ${RUST_VERSION_STRING}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 message(STATUS "Dependencies:")
@@ -654,6 +658,9 @@ endif()
 if(NOT(PYTHONINTERP_FOUND))
   message(SEND_ERROR "You must install Python to compile ${CMAKE_PROJECT_NAME}")
 endif()
+if(NOT(RUST_FOUND))
+  message(SEND_ERROR "You must install Rust and Cargo to compile ${CMAKE_PROJECT_NAME}")
+endif()
 if(NOT(SQLite3_FOUND))
   message(SEND_ERROR "You must install SQLite3 to compile ${CMAKE_PROJECT_NAME}")
 endif()
@@ -681,7 +688,7 @@ if(DISCORD_DYNAMIC)
   endif()
 endif()
 if(NOT(PNG_FOUND))
-  message(SEND_ERROR "You must install libpng to compile DDNet")
+  message(SEND_ERROR "You must install libpng to compile ${CMAKE_PROJECT_NAME}")
 endif()
 if(CLIENT AND NOT(FREETYPE_FOUND))
   message(SEND_ERROR "You must install Freetype to compile the ${CMAKE_PROJECT_NAME} client")
@@ -721,7 +728,12 @@ endif()
 if(TARGET_OS STREQUAL "windows")
   set(PLATFORM_CLIENT)
   set(PLATFORM_CLIENT_LIBS opengl32 winmm)
-  set(PLATFORM_LIBS shlwapi version ws2_32) # Windows sockets
+  set(PLATFORM_LIBS)
+  list(APPEND PLATFORM_LIBS shlwapi) # PathIsRelativeW
+  list(APPEND PLATFORM_LIBS version ws2_32) # Windows sockets
+  list(APPEND PLATFORM_LIBS bcrypt userenv) # for Rust (https://github.com/rust-lang/rust/issues/91974)
+  list(APPEND PLATFORM_LIBS ole32) # CoInitialize(Ex)
+  list(APPEND PLATFORM_LIBS shell32)
 elseif(TARGET_OS STREQUAL "mac")
   find_library(CARBON Carbon)
   find_library(COCOA Cocoa)
@@ -753,7 +765,9 @@ else()
   set(PLATFORM_CLIENT_INCLUDE_DIRS ${OPENGL_INCLUDE_DIR} ${NOTIFY_INCLUDE_DIRS})
   set(PLATFORM_CLIENT)
   if(TARGET_OS STREQUAL "linux")
-    set(PLATFORM_LIBS rt) # clock_gettime for glibc < 2.17
+    set(PLATFORM_LIBS)
+    list(APPEND PLATFORM_LIBS rt) # clock_gettime for glibc < 2.17
+    list(APPEND PLATFORM_LIBS dl) # for Rust
   else()
     set(PLATFORM_LIBS)
   endif()
@@ -800,10 +814,11 @@ if(NOT(GTEST_FOUND) AND DOWNLOAD_GTEST)
 
       if(MSVC)
         foreach(target gtest gmock)
+          set_property(TARGET ${target} PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded$<${DBG}:Debug>)
           # `/w` disables all warnings. This is needed because `gtest` enables
           # `/WX` (equivalent of `-Werror`) for some reason, breaking builds
           # when MSVS adds new warnings.
-          target_compile_options(${target} PRIVATE $<$<NOT:${DBG}>:/MT> $<${DBG}:/MTd> /w)
+          target_compile_options(${target} PRIVATE /w)
         endforeach()
       endif()
 
@@ -831,6 +846,161 @@ set(DEP_JSON $<TARGET_OBJECTS:json>)
 set(DEP_MD5)
 if(NOT CRYPTO_FOUND)
   set(DEP_MD5 $<TARGET_OBJECTS:md5>)
+endif()
+
+########################################################################
+# RUST
+########################################################################
+
+set_glob(RUST_BASE GLOB_RECURSE "rs;toml" src/base
+  Cargo.toml
+  color.rs
+  lib.rs
+  rust.rs
+)
+
+set_glob(RUST_ENGINE_INTERFACE GLOB "rs;toml" src/engine
+  Cargo.toml
+  console.rs
+  lib.rs
+)
+
+set_glob(RUST_ENGINE_SHARED GLOB_RECURSE "rs;toml" src/engine/shared
+  Cargo.toml
+  build.rs
+  config.rs
+  lib.rs
+  rust_version.rs
+)
+
+set_src(RUST_BRIDGE_SHARED GLOB_RECURSE src/rust-bridge
+  cpp/console.cpp
+  cpp/console.h
+  engine/shared/rust_version.cpp
+  engine/shared/rust_version.h
+)
+
+set_glob(RUST_MASTERSRV GLOB "rs;toml" src/mastersrv/src
+  addr.rs
+  locations.rs
+  main.rs
+)
+
+add_library(rust-bridge-shared EXCLUDE_FROM_ALL OBJECT ${RUST_BRIDGE_SHARED})
+list(APPEND TARGETS_OWN rust-bridge-shared)
+
+set(CARGO_BUILD_DIR "")
+set(CARGO_BUILD ${CMAKE_COMMAND} -E env CARGO_TARGET_DIR=${PROJECT_BINARY_DIR} DDNET_TEST_NO_LINK=1 ${RUST_CARGO} build)
+set(CARGO_TEST ${CMAKE_COMMAND} -E env CARGO_TARGET_DIR=${PROJECT_BINARY_DIR} ${RUST_CARGO} test)
+if(MSVC)
+  list(INSERT CARGO_BUILD 0 ${CMAKE_COMMAND} -E env $<$<CONFIG:Debug>:CFLAGS=/MTd> $<$<CONFIG:Debug>:CXXFLAGS=/MTd>)
+  list(INSERT CARGO_TEST 0 ${CMAKE_COMMAND} -E env RUSTFLAGS=-Ctarget-feature=+crt-static)
+endif()
+if(RUST_NIGHTLY)
+  list(APPEND CARGO_BUILD -Z build-std=std,panic_abort)
+endif()
+if(NOT CMAKE_OSX_ARCHITECTURES AND (DEFINED CMAKE_RUST_COMPILER_TARGET OR RUST_NIGHTLY))
+  if(DEFINED CMAKE_RUST_COMPILER_TARGET)
+    list(APPEND CARGO_TEST --target ${CMAKE_RUST_COMPILER_TARGET})
+    set(RUST_TARGET ${CMAKE_RUST_COMPILER_TARGET})
+  else()
+    set(RUST_TARGET ${RUST_TARGET_HOST})
+  endif()
+  list(APPEND CARGO_BUILD --target ${RUST_TARGET})
+  set(CARGO_BUILD_DIR "${RUST_TARGET}/")
+endif()
+set(CARGO_BUILD_DIR_DEBUG "${CARGO_BUILD_DIR}debug")
+set(CARGO_BUILD_DIR_RELEASE "${CARGO_BUILD_DIR}release")
+if(GENERATOR_IS_MULTI_CONFIG)
+  if(CMAKE_VERSION VERSION_LESS 3.20)
+    message(SEND_ERROR "Multi-config generators only supported from CMake 3.20 and up")
+  else()
+    set(CARGO_BUILD_DIR "${CARGO_BUILD_DIR}$<$<CONFIG:Debug>:debug>$<$<NOT:$<CONFIG:Debug>>:release>")
+  endif()
+else()
+  if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    set(CARGO_BUILD_DIR "${CARGO_BUILD_DIR_DEBUG}")
+  else()
+    set(CARGO_BUILD_DIR "${CARGO_BUILD_DIR_RELEASE}")
+  endif()
+endif()
+list(APPEND CARGO_BUILD $<$<NOT:$<CONFIG:Debug>>:--release>)
+
+if(CMAKE_OSX_ARCHITECTURES)
+  set(RUST_OSX_ARCHITECTURES)
+  foreach(arch ${CMAKE_OSX_ARCHITECTURES})
+    if(${arch} STREQUAL arm64)
+      list(APPEND RUST_OSX_ARCHITECTURES aarch64-apple-darwin)
+    elseif(${arch} STREQUAL x86_64)
+      list(APPEND RUST_OSX_ARCHITECTURES x86_64-apple-darwin)
+    else()
+      message(SEND_ERROR "CMAKE_OSX_ARCHITECTURES' architecture ${arch} unknown, can't build Rust code (known: arm64, x86_64)")
+    endif()
+  endforeach()
+endif()
+
+set(RUST_SRC
+      ${RUST_BASE}
+      ${RUST_ENGINE_INTERFACE}
+      ${RUST_ENGINE_SHARED}
+      Cargo.toml
+      Cargo.lock
+)
+set(RUST_TARGETS engine_shared)
+if(NOT CMAKE_OSX_ARCHITECTURES)
+  set(RUST_OUTPUTS)
+  foreach(rust_target ${RUST_TARGETS})
+    set(LIBRARY_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}ddnet_${rust_target}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    add_library(rust_${rust_target} STATIC IMPORTED GLOBAL)
+    add_custom_target(rust_${rust_target}_target DEPENDS "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}")
+    add_dependencies(rust_${rust_target} rust_${rust_target}_target)
+    set_target_properties(rust_${rust_target} PROPERTIES
+      IMPORTED_LOCATION "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR_RELEASE}/${LIBRARY_NAME}"
+      IMPORTED_LOCATION_DEBUG "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR_DEBUG}/${LIBRARY_NAME}"
+    )
+    list(APPEND RUST_OUTPUTS "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}")
+  endforeach()
+  add_custom_command(
+    OUTPUT ${RUST_OUTPUTS}
+    COMMAND ${CARGO_BUILD}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    USES_TERMINAL
+    DEPENDS ${RUST_SRC}
+  )
+else()
+  foreach(rust_target ${RUST_TARGETS})
+    set(LIBRARY_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}ddnet_${rust_target}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    add_library(rust_${rust_target} STATIC IMPORTED GLOBAL)
+    set_target_properties(rust_${rust_target} PROPERTIES
+      IMPORTED_LOCATION "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR_RELEASE}/${LIBRARY_NAME}"
+      IMPORTED_LOCATION_DEBUG "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR_DEBUG}/${LIBRARY_NAME}"
+    )
+    add_custom_target(rust_${rust_target}_target DEPENDS "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}")
+    add_dependencies(rust_${rust_target} rust_${rust_target}_target)
+    set(ARCH_LIBRARIES)
+    foreach(arch ${RUST_OSX_ARCHITECTURES})
+      list(APPEND ARCH_LIBRARIES "${PROJECT_BINARY_DIR}/${arch}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}")
+    endforeach()
+    add_custom_command(
+      OUTPUT "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}"
+      COMMAND lipo ${ARCH_LIBRARIES} -create -output "${PROJECT_BINARY_DIR}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}"
+      DEPENDS ${ARCH_LIBRARIES}
+    )
+  endforeach()
+  foreach(arch ${RUST_OSX_ARCHITECTURES})
+    set(RUST_OUTPUTS)
+    foreach(rust_target ${RUST_TARGETS})
+      set(LIBRARY_NAME "${CMAKE_STATIC_LIBRARY_PREFIX}ddnet_${rust_target}${CMAKE_STATIC_LIBRARY_SUFFIX}")
+      list(APPEND RUST_OUTPUTS "${PROJECT_BINARY_DIR}/${arch}/${CARGO_BUILD_DIR}/${LIBRARY_NAME}")
+    endforeach()
+    add_custom_command(
+      OUTPUT ${RUST_OUTPUTS}
+      COMMAND ${CARGO_BUILD} --target=${arch}
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+      USES_TERMINAL
+      DEPENDS ${RUST_SRC}
+    )
+  endforeach()
 endif()
 
 ########################################################################
@@ -1229,8 +1399,6 @@ set(EXPECTED_DATA
   countryflags/default.png
   countryflags/index.txt
   debug_font.png
-  demo_buttons.png
-  demo_buttons2.png
   editor/audio_source.png
   editor/background.png
   editor/basic_freeze.rules
@@ -1271,7 +1439,6 @@ set(EXPECTED_DATA
   editor/winter_main.rules
   emoticons.png
   extras.png
-  file_icons.png
   fonts/DejaVuSans.ttf
   fonts/GlowSansJCompressed-Book.otf
   fonts/Icons.otf
@@ -1429,7 +1596,6 @@ set(EXPECTED_DATA
   shader/vulkan/text.vert
   shader/vulkan/tile.frag
   shader/vulkan/tile.vert
-  skins/Aoe4leg.png
   skins/PaladiN.png
   skins/antiantey.png
   skins/beast.png
@@ -1584,9 +1750,11 @@ set(COPY_FILES
   ${DISCORDSDK_COPY_FILES}
   ${VULKAN_COPY_FILES}
   ${EXCEPTION_HANDLING_COPY_FILES}
-  ${INTEGRATION_TEST_COPY_FILES}
 )
 file(COPY ${COPY_FILES} DESTINATION .)
+# Don't add integration test files to COPY_FILES since we don't want to add
+# them in cpack.
+file(COPY ${INTEGRATION_TEST_COPY_FILES} DESTINATION .)
 
 set(COPY_DIRS ${SDL2_COPY_DIRS})
 file(COPY ${COPY_DIRS} DESTINATION .)
@@ -1690,6 +1858,8 @@ add_custom_command(OUTPUT "src/game/generated/wordlist.h"
 
 # Sources
 set_src(BASE GLOB_RECURSE src/base
+  bezier.cpp
+  bezier.h
   color.h
   detect.h
   dynamic.h
@@ -1704,6 +1874,7 @@ set_src(BASE GLOB_RECURSE src/base
   log.h
   logger.h
   math.h
+  rust.h
   system.cpp
   system.h
   tl/threading.h
@@ -1734,6 +1905,7 @@ set_src(ENGINE_INTERFACE GLOB src/engine
   keys.h
   map.h
   message.h
+  rust.h
   server.h
   serverbrowser.h
   sound.h
@@ -1780,6 +1952,7 @@ set_src(ENGINE_SHARED GLOB_RECURSE src/engine/shared
   kernel.cpp
   linereader.cpp
   linereader.h
+  localization.h
   map.cpp
   map.h
   masterserver.cpp
@@ -1828,8 +2001,6 @@ set_src(ENGINE_GFX GLOB src/engine/gfx
   image_manipulation.h
 )
 set_src(GAME_SHARED GLOB src/game
-  bezier.cpp
-  bezier.h
   collision.cpp
   collision.h
   ddracechat.h
@@ -2077,6 +2248,8 @@ if(CLIENT)
     components/voting.h
     gameclient.cpp
     gameclient.h
+    laser_data.cpp
+    laser_data.h
     lineinput.cpp
     lineinput.h
     prediction/entities/character.cpp
@@ -2103,6 +2276,8 @@ if(CLIENT)
     ui.h
     ui_rect.cpp
     ui_rect.h
+    ui_scrollregion.cpp
+    ui_scrollregion.h
   )
   set_src(GAME_EDITOR GLOB src/game/editor
     auto_map.cpp
@@ -2130,7 +2305,6 @@ if(CLIENT)
 
   # Libraries
   set(LIBS_CLIENT
-    ${LIBS}
     ${FREETYPE_LIBRARIES}
     ${GLEW_LIBRARIES}
     ${PNG_LIBRARIES}
@@ -2146,12 +2320,10 @@ if(CLIENT)
     ${VULKAN_LIBRARIES}
 
     ${TARGET_STEAMAPI}
+    rust_engine_shared
 
     ${PLATFORM_CLIENT_LIBS}
-
-    # Add pthreads (on non-Windows) at the end, so that other libraries can depend
-    # on it.
-    ${CMAKE_THREAD_LIBS_INIT}
+    ${LIBS}
   )
 
   if(DISCORD)
@@ -2187,6 +2359,7 @@ if(CLIENT)
       $<TARGET_OBJECTS:engine-gfx>
       $<TARGET_OBJECTS:engine-shared>
       $<TARGET_OBJECTS:game-shared>
+      $<TARGET_OBJECTS:rust-bridge-shared>
     )
   else()
     add_executable(${TARGET_CLIENT} WIN32
@@ -2197,6 +2370,7 @@ if(CLIENT)
       $<TARGET_OBJECTS:engine-gfx>
       $<TARGET_OBJECTS:engine-shared>
       $<TARGET_OBJECTS:game-shared>
+      $<TARGET_OBJECTS:rust-bridge-shared>
     )
   endif()
   target_link_libraries(${TARGET_CLIENT} ${LIBS_CLIENT})
@@ -2369,13 +2543,12 @@ if(SERVER)
 
   # Libraries
   set(LIBS_SERVER
-    ${LIBS}
+    ${MINIUPNPC_LIBRARIES}
     ${MYSQL_LIBRARIES}
     ${TARGET_ANTIBOT}
-    ${MINIUPNPC_LIBRARIES}
-    # Add pthreads (on non-Windows) at the end, so that other libraries can depend
-    # on it.
-    ${CMAKE_THREAD_LIBS_INIT}
+    rust_engine_shared
+
+    ${LIBS}
   )
 
   # Target
@@ -2386,6 +2559,7 @@ if(SERVER)
     ${SERVER_ICON}
     $<TARGET_OBJECTS:engine-shared>
     $<TARGET_OBJECTS:game-shared>
+    $<TARGET_OBJECTS:rust-bridge-shared>
   )
   target_link_libraries(${TARGET_SERVER} ${LIBS_SERVER})
   target_include_directories(${TARGET_SERVER} PRIVATE ${PNG_INCLUDE_DIRS})
@@ -2416,8 +2590,10 @@ if(TOOLS)
     dilate.cpp
     dummy_map.cpp
     map_convert_07.cpp
+    map_create_pixelart.cpp
     map_diff.cpp
     map_extract.cpp
+    map_find_env.cpp
     map_optimize.cpp
     map_replace_area.cpp
     map_replace_image.cpp
@@ -2434,9 +2610,9 @@ if(TOOLS)
       string(REGEX REPLACE "\\.cpp$" "" TOOL "${T}")
       set(TOOL_DEPS ${DEPS})
       set(TOOL_LIBS ${LIBS})
-      if(TOOL MATCHES "^(dilate|map_convert_07|map_optimize|map_extract|map_replace_image)$")
+      if(TOOL MATCHES "^(dilate|map_convert_07|map_create_pixelart|map_optimize|map_extract|map_replace_image)$")
         list(APPEND TOOL_INCLUDE_DIRS ${PNG_INCLUDE_DIRS})
-	list(APPEND TOOL_DEPS $<TARGET_OBJECTS:engine-gfx>)
+        list(APPEND TOOL_DEPS $<TARGET_OBJECTS:engine-gfx>)
         list(APPEND TOOL_LIBS ${PNG_LIBRARIES})
       endif()
       if(TOOL MATCHES "^config_")
@@ -2512,11 +2688,13 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
     fs.cpp
     git_revision.cpp
     hash.cpp
+    huffman.cpp
     io.cpp
     jobs.cpp
     json.cpp
     mapbugs.cpp
     name_ban.cpp
+    net.cpp
     netaddr.cpp
     os.cpp
     packer.cpp
@@ -2567,7 +2745,7 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
     $<TARGET_OBJECTS:game-shared>
     ${DEPS}
   )
-  target_link_libraries(${TARGET_TESTRUNNER} ${LIBS} ${MYSQL_LIBRARIES} ${PNG_LIBRARIES} ${GTEST_LIBRARIES})
+  target_link_libraries(${TARGET_TESTRUNNER} ${MYSQL_LIBRARIES} ${PNG_LIBRARIES} ${GTEST_LIBRARIES} ${LIBS})
   target_include_directories(${TARGET_TESTRUNNER} SYSTEM PRIVATE ${GTEST_INCLUDE_DIRS})
 
   list(APPEND TARGETS_OWN ${TARGET_TESTRUNNER})
@@ -2579,7 +2757,36 @@ if(GTEST_FOUND OR DOWNLOAD_GTEST)
     DEPENDS ${TARGET_TESTRUNNER}
     USES_TERMINAL
   )
+  if(NOT MSVC OR CMAKE_BUILD_TYPE STREQUAL Release)
+    # On MSVC, Rust tests only work in the release mode because we link our C++
+    # code with the debug C standard library (/MTd) but Rust only supports
+    # linking to the release C standard library (/MT).
+    #
+    # See also https://github.com/rust-lang/rust/issues/39016.
+    add_dependencies(run_tests run_rust_tests)
+  endif()
 endif()
+
+add_library(rust_test STATIC EXCLUDE_FROM_ALL
+  $<TARGET_OBJECTS:engine-gfx>
+  $<TARGET_OBJECTS:engine-shared>
+  $<TARGET_OBJECTS:game-shared>
+  $<TARGET_OBJECTS:rust-bridge-shared>
+  ${DEPS}
+)
+
+list(APPEND TARGETS_OWN rust_test)
+list(APPEND TARGETS_LINK rust_test)
+
+set(RUST_TEST_LIBS ${LIBS} $<TARGET_FILE:rust_test>)
+list(REMOVE_ITEM RUST_TEST_LIBS "-pthread")
+add_custom_target(run_rust_tests
+  COMMAND ${CMAKE_COMMAND} -E env "DDNET_TEST_LIBRARIES=${RUST_TEST_LIBS}" ${CARGO_TEST}
+  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+  USES_TERMINAL
+  DEPENDS rust_test
+  VERBATIM
+)
 
 add_custom_target(run_integration_tests
   COMMAND ${PROJECT_BINARY_DIR}/integration_test.sh ${INTEGRATIONTESTRUNNER_ARGS}
@@ -2857,6 +3064,7 @@ if(CLIENT AND DMGBUILD)
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/ddnet-libs/sdl/${LIB_DIR}/SDL2.framework ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/SDL2.framework
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/discord/${LIB_DIR}/discord_game_sdk.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/freetype/${LIB_DIR}/libfreetype.6.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/png/${LIB_DIR}/libpng16.16.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/ffmpeg/${LIB_DIR}/libavcodec.59.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/ffmpeg/${LIB_DIR}/libavformat.59.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
     COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/ddnet-libs/ffmpeg/${LIB_DIR}/libavutil.57.dylib ${DMG_TMPDIR}/${TARGET_CLIENT}.app/Contents/Frameworks/
@@ -2992,7 +3200,7 @@ set(TARGETS ${TARGETS_OWN} ${TARGETS_DEP})
 
 foreach(target ${TARGETS})
   if(MSVC)
-    target_compile_options(${target} PRIVATE $<$<NOT:${DBG}>:/MT> $<${DBG}:/MTd>) # Use static CRT
+    set_property(TARGET ${target} PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded$<${DBG}:Debug>) # Use static CRT
     target_compile_options(${target} PRIVATE /MP) # Use multiple cores
     target_compile_options(${target} PRIVATE /EHsc) # Only catch C++ exceptions with catch.
     target_compile_options(${target} PRIVATE /GS) # Protect the stack pointer.
@@ -3055,6 +3263,7 @@ foreach(target ${TARGETS_OWN})
   endif()
   target_include_directories(${target} PRIVATE ${PROJECT_BINARY_DIR}/src)
   target_include_directories(${target} PRIVATE src)
+  target_include_directories(${target} PRIVATE src/rust-bridge)
   target_compile_definitions(${target} PRIVATE $<$<CONFIG:Debug>:CONF_DEBUG>)
   target_include_directories(${target} SYSTEM PRIVATE ${CURL_INCLUDE_DIRS} ${SQLite3_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIRS})
   target_compile_definitions(${target} PRIVATE GLEW_STATIC)

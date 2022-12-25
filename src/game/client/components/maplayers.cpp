@@ -229,7 +229,7 @@ void FillTmpTile(SGraphicTile *pTmpTile, SGraphicTileTexureCoords *pTmpTex, bool
 		unsigned char x3 = x0;
 		unsigned char y3 = y0 + 1;
 
-		if(Flags & TILEFLAG_VFLIP)
+		if(Flags & TILEFLAG_XFLIP)
 		{
 			x0 = x2;
 			x1 = x3;
@@ -237,7 +237,7 @@ void FillTmpTile(SGraphicTile *pTmpTile, SGraphicTileTexureCoords *pTmpTex, bool
 			x3 = x0;
 		}
 
-		if(Flags & TILEFLAG_HFLIP)
+		if(Flags & TILEFLAG_YFLIP)
 		{
 			y0 = y3;
 			y2 = y1;
@@ -848,7 +848,7 @@ void CMapLayers::OnMapLoad()
 							mem_copy_special(pUploadData, pTmpTiles, sizeof(vec2), vtmpTiles.size() * 4, (DoTextureCoords ? sizeof(vec3) : 0));
 							if(DoTextureCoords)
 							{
-								mem_copy_special(pUploadData + sizeof(vec2), pTmpTileTexCoords, sizeof(vec3), vtmpTiles.size() * 4, (DoTextureCoords ? (sizeof(vec2)) : 0));
+								mem_copy_special(pUploadData + sizeof(vec2), pTmpTileTexCoords, sizeof(vec3), vtmpTiles.size() * 4, sizeof(vec2));
 							}
 
 							// first create the buffer object
@@ -1562,6 +1562,7 @@ void CMapLayers::OnRender()
 	for(int g = 0; g < m_pLayers->NumGroups(); g++)
 	{
 		CMapItemGroup *pGroup = m_pLayers->GetGroup(g);
+		CMapItemGroupEx *pGroupEx = m_pLayers->GetGroupEx(g);
 
 		if(!pGroup)
 		{
@@ -1575,7 +1576,7 @@ void CMapLayers::OnRender()
 		{
 			// set clipping
 			float aPoints[4];
-			RenderTools()->MapScreenToGroup(Center.x, Center.y, m_pLayers->GameGroup(), GetCurCamera()->m_Zoom);
+			RenderTools()->MapScreenToGroup(Center.x, Center.y, m_pLayers->GameGroup(), m_pLayers->GameGroupEx(), GetCurCamera()->m_Zoom);
 			Graphics()->GetScreen(&aPoints[0], &aPoints[1], &aPoints[2], &aPoints[3]);
 			float x0 = (pGroup->m_ClipX - aPoints[0]) / (aPoints[2] - aPoints[0]);
 			float y0 = (pGroup->m_ClipY - aPoints[1]) / (aPoints[3] - aPoints[1]);
@@ -1593,12 +1594,7 @@ void CMapLayers::OnRender()
 				(int)((x1 - x0) * Graphics()->ScreenWidth()), (int)((y1 - y0) * Graphics()->ScreenHeight()));
 		}
 
-		if((!g_Config.m_ClZoomBackgroundLayers || m_Type == TYPE_FULL_DESIGN) && !pGroup->m_ParallaxX && !pGroup->m_ParallaxY)
-		{
-			RenderTools()->MapScreenToGroup(Center.x, Center.y, pGroup, 1.0f);
-		}
-		else
-			RenderTools()->MapScreenToGroup(Center.x, Center.y, pGroup, GetCurCamera()->m_Zoom);
+		RenderTools()->MapScreenToGroup(Center.x, Center.y, pGroup, pGroupEx, GetCurCamera()->m_Zoom);
 
 		for(int l = 0; l < pGroup->m_NumLayers; l++)
 		{
@@ -1658,7 +1654,7 @@ void CMapLayers::OnRender()
 					Render = true;
 			}
 
-			if(Render && pLayer->m_Type == LAYERTYPE_TILES && Input()->ModifierIsPressed() && (Input()->KeyIsPressed(KEY_LSHIFT) || Input()->KeyIsPressed(KEY_RSHIFT)) && Input()->KeyPress(KEY_KP_0))
+			if(Render && pLayer->m_Type == LAYERTYPE_TILES && Input()->ModifierIsPressed() && Input()->ShiftIsPressed() && Input()->KeyPress(KEY_KP_0))
 			{
 				CMapItemLayerTilemap *pTMap = (CMapItemLayerTilemap *)pLayer;
 				CTile *pTiles = (CTile *)m_pLayers->Map()->GetData(pTMap->m_Data);

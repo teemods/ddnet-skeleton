@@ -8,13 +8,13 @@
 #include <antibot/antibot_data.h>
 #include <base/logger.h>
 #include <base/math.h>
-#include <cstring>
 #include <engine/console.h>
 #include <engine/engine.h>
 #include <engine/map.h>
 #include <engine/server/server.h>
 #include <engine/shared/config.h>
 #include <engine/shared/datafile.h>
+#include <engine/shared/json.h>
 #include <engine/shared/linereader.h>
 #include <engine/shared/memheap.h>
 #include <engine/storage.h>
@@ -92,6 +92,9 @@ void CGameContext::Construct(int Resetting)
 	m_pScore = nullptr;
 	m_NumMutes = 0;
 	m_NumVoteMutes = 0;
+
+	m_LastLog = 0;
+	m_FirstLog = 0;
 
 	if(Resetting == NO_RESET)
 	{
@@ -229,13 +232,13 @@ void CGameContext::FillAntibot(CAntibotRoundData *pData)
 
 void CGameContext::CreateDamageInd(vec2 Pos, float Angle, int Amount, int64_t Mask)
 {
-	float a = 3 * 3.14159f / 2 + Angle;
+	float a = 3 * pi / 2 + Angle;
 	//float a = get_angle(dir);
 	float s = a - pi / 3;
 	float e = a + pi / 3;
 	for(int i = 0; i < Amount; i++)
 	{
-		float f = mix(s, e, float(i + 1) / float(Amount + 2));
+		float f = mix(s, e, (i + 1) / (float)(Amount + 2));
 		CNetEvent_DamageInd *pEvent = (CNetEvent_DamageInd *)m_Events.Create(NETEVENTTYPE_DAMAGEIND, sizeof(CNetEvent_DamageInd), Mask);
 		if(pEvent)
 		{
@@ -268,14 +271,15 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 	}
 
 	// deal damage
-	CCharacter *apEnts[MAX_CLIENTS];
+	CEntity *apEnts[MAX_CLIENTS];
 	float Radius = 135.0f;
 	float InnerRadius = 48.0f;
-	int Num = m_World.FindEntities(Pos, Radius, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+	int Num = m_World.FindEntities(Pos, Radius, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 	int64_t TeamMask = -1;
 	for(int i = 0; i < Num; i++)
 	{
-		vec2 Diff = apEnts[i]->m_Pos - Pos;
+		auto *pChr = static_cast<CCharacter *>(apEnts[i]);
+		vec2 Diff = pChr->m_Pos - Pos;
 		vec2 ForceDir(0, 1);
 		float l = length(Diff);
 		if(l)
@@ -291,15 +295,15 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 		if(!(int)Dmg)
 			continue;
 
-		if((GetPlayerChar(Owner) ? !GetPlayerChar(Owner)->GrenadeHitDisabled() : g_Config.m_SvHit) || NoDamage || Owner == apEnts[i]->GetPlayer()->GetCID())
+		if((GetPlayerChar(Owner) ? !GetPlayerChar(Owner)->GrenadeHitDisabled() : g_Config.m_SvHit) || NoDamage || Owner == pChr->GetPlayer()->GetCID())
 		{
-			if(Owner != -1 && apEnts[i]->IsAlive() && !apEnts[i]->CanCollide(Owner))
+			if(Owner != -1 && pChr->IsAlive() && !pChr->CanCollide(Owner))
 				continue;
-			if(Owner == -1 && ActivatedTeam != -1 && apEnts[i]->IsAlive() && apEnts[i]->Team() != ActivatedTeam)
+			if(Owner == -1 && ActivatedTeam != -1 && pChr->IsAlive() && pChr->Team() != ActivatedTeam)
 				continue;
 
 			// Explode at most once per team
-			int PlayerTeam = apEnts[i]->Team();
+			int PlayerTeam = pChr->Team();
 			if((GetPlayerChar(Owner) ? GetPlayerChar(Owner)->GrenadeHitDisabled() : !g_Config.m_SvHit) || NoDamage)
 			{
 				if(!CmaskIsSet(TeamMask, PlayerTeam))
@@ -307,7 +311,7 @@ void CGameContext::CreateExplosion(vec2 Pos, int Owner, int Weapon, bool NoDamag
 				TeamMask = CmaskUnset(TeamMask, PlayerTeam);
 			}
 
-			apEnts[i]->TakeDamage(ForceDir * Dmg * 2, (int)Dmg, Owner, Weapon);
+			pChr->TakeDamage(ForceDir * Dmg * 2, (int)Dmg, Owner, Weapon);
 		}
 	}
 }
@@ -471,6 +475,9 @@ void CGameContext::SendChat(int ChatterClientID, int Team, const char *pText, in
 			if(!m_apPlayers[i]->m_DND && Send)
 				Server()->SendPackMsg(&Msg, MSGFLAG_VITAL | MSGFLAG_NORECORD, i);
 		}
+
+		str_format(aBuf, sizeof aBuf, "Chat: %s", aText);
+		LogEvent(aBuf, ChatterClientID);
 	}
 	else
 	{
@@ -689,8 +696,8 @@ void CGameContext::SendVoteStatus(int ClientID, int Total, int Yes, int No)
 
 	if(Total > VANILLA_MAX_CLIENTS && m_apPlayers[ClientID] && m_apPlayers[ClientID]->GetClientVersion() <= VERSION_DDRACE)
 	{
-		Yes = float(Yes * VANILLA_MAX_CLIENTS) / float(Total);
-		No = float(No * VANILLA_MAX_CLIENTS) / float(Total);
+		Yes = (Yes * VANILLA_MAX_CLIENTS) / (float)Total;
+		No = (No * VANILLA_MAX_CLIENTS) / (float)Total;
 		Total = VANILLA_MAX_CLIENTS;
 	}
 
@@ -915,7 +922,7 @@ void CGameContext::OnTick()
 											     GetPlayerChar(m_VoteCreator)->Team() != GetPlayerChar(i)->Team())))
 						continue;
 
-					if(m_apPlayers[i]->m_Afk && i != m_VoteCreator)
+					if(m_apPlayers[i]->IsAfk() && i != m_VoteCreator)
 						continue;
 
 					// can't vote in kick and spec votes in the beginning after joining
@@ -966,7 +973,7 @@ void CGameContext::OnTick()
 							if(i != j && (!m_apPlayers[j] || str_comp(aaBuf[j], aaBuf[i]) != 0))
 								continue;
 
-							if(m_apPlayers[j] && !m_apPlayers[j]->m_Afk && m_apPlayers[j]->GetTeam() != TEAM_SPECTATORS &&
+							if(m_apPlayers[j] && !m_apPlayers[j]->IsAfk() && m_apPlayers[j]->GetTeam() != TEAM_SPECTATORS &&
 								((Server()->Tick() - m_apPlayers[j]->m_JoinTick) / (Server()->TickSpeed() * 60) > g_Config.m_SvVoteVetoTime ||
 									(m_apPlayers[j]->GetCharacter() && m_apPlayers[j]->GetCharacter()->m_DDRaceState == DDRACE_STARTED &&
 										(Server()->Tick() - m_apPlayers[j]->GetCharacter()->m_StartTime) / (Server()->TickSpeed() * 60) > g_Config.m_SvVoteVetoTime)))
@@ -1057,6 +1064,14 @@ void CGameContext::OnTick()
 		{
 			m_NumVoteMutes--;
 			m_aVoteMutes[i] = m_aVoteMutes[m_NumVoteMutes];
+		}
+	}
+	for(int i = 0; i < m_LastLog; i++)
+	{
+		if(m_aLogs[i].m_Timestamp && (time_get() - m_aLogs[i].m_Timestamp) / time_freq() > MAX_LOG_SECONDS)
+		{
+			m_FirstLog = (m_FirstLog + 1) % MAX_LOGS;
+			m_aLogs[m_FirstLog].m_Timestamp = 0;
 		}
 	}
 
@@ -1379,7 +1394,7 @@ void CGameContext::OnClientEnter(int ClientID)
 		if(g_Config.m_SvShowOthersDefault > SHOW_OTHERS_OFF)
 		{
 			if(g_Config.m_SvShowOthers)
-				SendChatTarget(ClientID, "You can see other players. To disable this use DDNet client and type /showothers .");
+				SendChatTarget(ClientID, "You can see other players. To disable this use DDNet client and type /showothers");
 
 			m_apPlayers[ClientID]->m_ShowOthers = g_Config.m_SvShowOthersDefault;
 		}
@@ -1461,6 +1476,8 @@ void CGameContext::OnClientEnter(int ClientID)
 		Server()->GetClientAddr(ClientID, &Addr);
 		Mute(&Addr, g_Config.m_SvChatInitialDelay, Server()->ClientName(ClientID), "Initial chat delay", true);
 	}
+
+	LogEvent("Connect", ClientID);
 }
 
 bool CGameContext::OnClientDataPersist(int ClientID, void *pData)
@@ -1471,6 +1488,7 @@ bool CGameContext::OnClientDataPersist(int ClientID, void *pData)
 		return false;
 	}
 	pPersistent->m_IsSpectator = m_apPlayers[ClientID]->GetTeam() == TEAM_SPECTATORS;
+	pPersistent->m_IsAfk = m_apPlayers[ClientID]->IsAfk();
 	return true;
 }
 
@@ -1478,9 +1496,11 @@ void CGameContext::OnClientConnected(int ClientID, void *pData)
 {
 	CPersistentClientData *pPersistentData = (CPersistentClientData *)pData;
 	bool Spec = false;
+	bool Afk = true;
 	if(pPersistentData)
 	{
 		Spec = pPersistentData->m_IsSpectator;
+		Afk = pPersistentData->m_IsAfk;
 	}
 
 	{
@@ -1505,6 +1525,7 @@ void CGameContext::OnClientConnected(int ClientID, void *pData)
 	if(m_apPlayers[ClientID])
 		delete m_apPlayers[ClientID];
 	m_apPlayers[ClientID] = new(ClientID) CPlayer(this, NextUniqueClientID, ClientID, StartTeam);
+	m_apPlayers[ClientID]->SetAfk(Afk);
 	NextUniqueClientID += 1;
 
 #ifdef CONF_DEBUG
@@ -1523,12 +1544,13 @@ void CGameContext::OnClientConnected(int ClientID, void *pData)
 
 void CGameContext::OnClientDrop(int ClientID, const char *pReason)
 {
+	LogEvent("Disconnect", ClientID);
+
 	AbortVoteKickOnDisconnect(ClientID);
 	m_pController->OnPlayerDisconnect(m_apPlayers[ClientID], pReason);
 	delete m_apPlayers[ClientID];
 	m_apPlayers[ClientID] = 0;
 
-	//(void)m_pController->CheckTeamBalance();
 	m_VoteUpdate = true;
 
 	// update spectator modes
@@ -1782,7 +1804,10 @@ void CGameContext::CensorMessage(char *pCensoredMessage, const char *pMessage, i
 			pCurLoc = (char *)str_utf8_find_nocase(pCurLoc, Item.c_str());
 			if(pCurLoc)
 			{
-				memset(pCurLoc, '*', Item.length());
+				for(int i = 0; i < (int)Item.length(); i++)
+				{
+					pCurLoc[i] = '*';
+				}
 				pCurLoc++;
 			}
 		} while(pCurLoc);
@@ -1973,7 +1998,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 
 						str_format(aChatmsg, sizeof(aChatmsg), "'%s' called vote to change server option '%s' (%s)", Server()->ClientName(ClientID),
 							pOption->m_aDescription, aReason);
-						str_format(aDesc, sizeof(aDesc), "%s", pOption->m_aDescription);
+						str_copy(aDesc, pOption->m_aDescription);
 
 						if((str_endswith(pOption->m_aCommand, "random_map") || str_endswith(pOption->m_aCommand, "random_unfinished_map")) && str_length(aReason) == 1 && aReason[0] >= '0' && aReason[0] <= '5')
 						{
@@ -1982,7 +2007,7 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 						}
 						else
 						{
-							str_format(aCmd, sizeof(aCmd), "%s", pOption->m_aCommand);
+							str_copy(aCmd, pOption->m_aCommand);
 						}
 
 						m_LastMapVote = time_get();
@@ -2003,8 +2028,8 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 					else
 					{
 						str_format(aChatmsg, sizeof(aChatmsg), "'%s' called vote to change server option '%s'", Server()->ClientName(ClientID), pMsg->m_pValue);
-						str_format(aDesc, sizeof(aDesc), "%s", pMsg->m_pValue);
-						str_format(aCmd, sizeof(aCmd), "%s", pMsg->m_pValue);
+						str_copy(aDesc, pMsg->m_pValue);
+						str_copy(aCmd, pMsg->m_pValue);
 					}
 				}
 
@@ -2024,7 +2049,6 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 					m_apPlayers[ClientID]->m_Last_KickVote = time_get();
 					return;
 				}
-				//else if(!g_Config.m_SvVoteKick)
 				else if(!g_Config.m_SvVoteKick && !Authed) // allow admins to call kick votes even if they are forbidden
 				{
 					SendChatTarget(ClientID, "Server does not allow voting to kick players");
@@ -2343,6 +2367,8 @@ void CGameContext::OnMessage(int MsgID, CUnpacker *pUnpacker, int ClientID)
 				Score()->LoadPlayerData(ClientID);
 
 				SixupNeedsUpdate = true;
+
+				LogEvent("Name change", ClientID);
 			}
 
 			if(str_comp(Server()->ClientClan(ClientID), pMsg->m_pClan))
@@ -3197,7 +3223,7 @@ void CGameContext::OnConsoleInit()
 	Console()->Register("tune_zone_reset", "?i[zone]", CFGFLAG_SERVER, ConTuneResetZone, this, "reset zone tuning in zone x or in all zones");
 	Console()->Register("tune_zone_enter", "i[zone] r[message]", CFGFLAG_SERVER | CFGFLAG_GAME, ConTuneSetZoneMsgEnter, this, "which message to display on zone enter; use 0 for normal area");
 	Console()->Register("tune_zone_leave", "i[zone] r[message]", CFGFLAG_SERVER | CFGFLAG_GAME, ConTuneSetZoneMsgLeave, this, "which message to display on zone leave; use 0 for normal area");
-	Console()->Register("mapbug", "s[mapbug]", CFGFLAG_SERVER | CFGFLAG_GAME, ConMapbug, this, "Enable map compatibility mode using the specified bug (example: grenade-doublexplosion@ddnet.tw)");
+	Console()->Register("mapbug", "s[mapbug]", CFGFLAG_SERVER | CFGFLAG_GAME, ConMapbug, this, "Enable map compatibility mode using the specified bug (example: grenade-doubleexplosion@ddnet.tw)");
 	Console()->Register("switch_open", "i[switch]", CFGFLAG_SERVER | CFGFLAG_GAME, ConSwitchOpen, this, "Whether a switch is deactivated by default (otherwise activated)");
 	Console()->Register("pause_game", "", CFGFLAG_SERVER, ConPause, this, "Pause/unpause game");
 	Console()->Register("change_map", "?r[map]", CFGFLAG_SERVER | CFGFLAG_STORE, ConChangeMap, this, "Change map");
@@ -3233,7 +3259,7 @@ void CGameContext::OnConsoleInit()
 #include <game/ddracechat.h>
 }
 
-void CGameContext::OnInit(/*class IKernel *pKernel*/)
+void CGameContext::OnInit()
 {
 	m_pServer = Kernel()->RequestInterface<IServer>();
 	m_pConfig = Kernel()->RequestInterface<IConfigManager>()->Values();
@@ -3255,9 +3281,6 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 
 	DeleteTempfile();
 
-	//if(!data) // only load once
-	//data = load_data_from_memory(internal_data);
-
 	for(int i = 0; i < NUM_NETOBJTYPES; i++)
 		Server()->SnapSetStaticsize(i, m_NetObjHandler.GetObjSize(i));
 
@@ -3271,10 +3294,6 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 	int MapCrc;
 	Server()->GetMapInfo(aMapName, sizeof(aMapName), &MapSize, &MapSha256, &MapCrc);
 	m_MapBugs = GetMapBugs(aMapName, MapSize, MapSha256);
-
-	// reset everything here
-	//world = new GAMEWORLD;
-	//players = new CPlayer[MAX_CLIENTS];
 
 	// Reset Tunezones
 	CTuningParams TuningParams;
@@ -3393,7 +3412,7 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 		}
 		else
 		{
-			str_format(aVersion, sizeof(aVersion), "%s", GAME_MOD_VERSION);
+			str_copy(aVersion, GAME_MOD_VERSION);
 		}
 		CTeeHistorian::CGameInfo GameInfo;
 		GameInfo.m_GameUuid = m_GameUuid;
@@ -3431,108 +3450,8 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 		m_pScore = new CScore(this, ((CServer *)Server())->DbPool());
 	}
 
-	// setup core world
-	//for(int i = 0; i < MAX_CLIENTS; i++)
-	//	game.players[i].core.world = &game.world.core;
-
 	// create all entities from the game layer
-	CMapItemLayerTilemap *pTileMap = m_Layers.GameLayer();
-	CTile *pTiles = (CTile *)Kernel()->RequestInterface<IMap>()->GetData(pTileMap->m_Data);
-
-	CTile *pFront = 0;
-	CSwitchTile *pSwitch = 0;
-	if(m_Layers.FrontLayer())
-		pFront = (CTile *)Kernel()->RequestInterface<IMap>()->GetData(m_Layers.FrontLayer()->m_Front);
-	if(m_Layers.SwitchLayer())
-		pSwitch = (CSwitchTile *)Kernel()->RequestInterface<IMap>()->GetData(m_Layers.SwitchLayer()->m_Switch);
-
-	for(int y = 0; y < pTileMap->m_Height; y++)
-	{
-		for(int x = 0; x < pTileMap->m_Width; x++)
-		{
-			int Index = pTiles[y * pTileMap->m_Width + x].m_Index;
-
-			if(Index == TILE_OLDLASER)
-			{
-				g_Config.m_SvOldLaser = 1;
-				dbg_msg("game_layer", "found old laser tile");
-			}
-			else if(Index == TILE_NPC)
-			{
-				m_Tuning.Set("player_collision", 0);
-				dbg_msg("game_layer", "found no collision tile");
-			}
-			else if(Index == TILE_EHOOK)
-			{
-				g_Config.m_SvEndlessDrag = 1;
-				dbg_msg("game_layer", "found unlimited hook time tile");
-			}
-			else if(Index == TILE_NOHIT)
-			{
-				g_Config.m_SvHit = 0;
-				dbg_msg("game_layer", "found no weapons hitting others tile");
-			}
-			else if(Index == TILE_NPH)
-			{
-				m_Tuning.Set("player_hooking", 0);
-				dbg_msg("game_layer", "found no player hooking tile");
-			}
-
-			if(Index >= ENTITY_OFFSET)
-			{
-				vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-				m_pController->OnEntity(Index - ENTITY_OFFSET, Pos, LAYER_GAME, pTiles[y * pTileMap->m_Width + x].m_Flags);
-			}
-
-			if(pFront)
-			{
-				Index = pFront[y * pTileMap->m_Width + x].m_Index;
-				if(Index == TILE_OLDLASER)
-				{
-					g_Config.m_SvOldLaser = 1;
-					dbg_msg("front_layer", "found old laser tile");
-				}
-				else if(Index == TILE_NPC)
-				{
-					m_Tuning.Set("player_collision", 0);
-					dbg_msg("front_layer", "found no collision tile");
-				}
-				else if(Index == TILE_EHOOK)
-				{
-					g_Config.m_SvEndlessDrag = 1;
-					dbg_msg("front_layer", "found unlimited hook time tile");
-				}
-				else if(Index == TILE_NOHIT)
-				{
-					g_Config.m_SvHit = 0;
-					dbg_msg("front_layer", "found no weapons hitting others tile");
-				}
-				else if(Index == TILE_NPH)
-				{
-					m_Tuning.Set("player_hooking", 0);
-					dbg_msg("front_layer", "found no player hooking tile");
-				}
-				if(Index >= ENTITY_OFFSET)
-				{
-					vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-					m_pController->OnEntity(Index - ENTITY_OFFSET, Pos, LAYER_FRONT, pFront[y * pTileMap->m_Width + x].m_Flags);
-				}
-			}
-			if(pSwitch)
-			{
-				Index = pSwitch[y * pTileMap->m_Width + x].m_Type;
-				// TODO: Add off by default door here
-				// if (Index == TILE_DOOR_OFF)
-				if(Index >= ENTITY_OFFSET)
-				{
-					vec2 Pos(x * 32.0f + 16.0f, y * 32.0f + 16.0f);
-					m_pController->OnEntity(Index - ENTITY_OFFSET, Pos, LAYER_SWITCH, pSwitch[y * pTileMap->m_Width + x].m_Flags, pSwitch[y * pTileMap->m_Width + x].m_Number);
-				}
-			}
-		}
-	}
-
-	//game.world.insert_entity(game.Controller);
+	CreateAllEntities(true);
 
 	if(GIT_SHORTREV_HASH)
 		Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "git-revision", GIT_SHORTREV_HASH);
@@ -3546,6 +3465,107 @@ void CGameContext::OnInit(/*class IKernel *pKernel*/)
 		}
 	}
 #endif
+}
+
+void CGameContext::CreateAllEntities(bool Initial)
+{
+	const CMapItemLayerTilemap *pTileMap = m_Layers.GameLayer();
+	const CTile *pTiles = static_cast<CTile *>(Kernel()->RequestInterface<IMap>()->GetData(pTileMap->m_Data));
+
+	const CTile *pFront = nullptr;
+	if(m_Layers.FrontLayer())
+		pFront = static_cast<CTile *>(Kernel()->RequestInterface<IMap>()->GetData(m_Layers.FrontLayer()->m_Front));
+
+	const CSwitchTile *pSwitch = nullptr;
+	if(m_Layers.SwitchLayer())
+		pSwitch = static_cast<CSwitchTile *>(Kernel()->RequestInterface<IMap>()->GetData(m_Layers.SwitchLayer()->m_Switch));
+
+	for(int y = 0; y < pTileMap->m_Height; y++)
+	{
+		for(int x = 0; x < pTileMap->m_Width; x++)
+		{
+			const int Index = y * pTileMap->m_Width + x;
+
+			// Game layer
+			{
+				const int GameIndex = pTiles[Index].m_Index;
+				if(GameIndex == TILE_OLDLASER)
+				{
+					g_Config.m_SvOldLaser = 1;
+					dbg_msg("game_layer", "found old laser tile");
+				}
+				else if(GameIndex == TILE_NPC)
+				{
+					m_Tuning.Set("player_collision", 0);
+					dbg_msg("game_layer", "found no collision tile");
+				}
+				else if(GameIndex == TILE_EHOOK)
+				{
+					g_Config.m_SvEndlessDrag = 1;
+					dbg_msg("game_layer", "found unlimited hook time tile");
+				}
+				else if(GameIndex == TILE_NOHIT)
+				{
+					g_Config.m_SvHit = 0;
+					dbg_msg("game_layer", "found no weapons hitting others tile");
+				}
+				else if(GameIndex == TILE_NPH)
+				{
+					m_Tuning.Set("player_hooking", 0);
+					dbg_msg("game_layer", "found no player hooking tile");
+				}
+				else if(GameIndex >= ENTITY_OFFSET)
+				{
+					m_pController->OnEntity(GameIndex - ENTITY_OFFSET, x, y, LAYER_GAME, pTiles[Index].m_Flags, Initial);
+				}
+			}
+
+			if(pFront)
+			{
+				const int FrontIndex = pFront[Index].m_Index;
+				if(FrontIndex == TILE_OLDLASER)
+				{
+					g_Config.m_SvOldLaser = 1;
+					dbg_msg("front_layer", "found old laser tile");
+				}
+				else if(FrontIndex == TILE_NPC)
+				{
+					m_Tuning.Set("player_collision", 0);
+					dbg_msg("front_layer", "found no collision tile");
+				}
+				else if(FrontIndex == TILE_EHOOK)
+				{
+					g_Config.m_SvEndlessDrag = 1;
+					dbg_msg("front_layer", "found unlimited hook time tile");
+				}
+				else if(FrontIndex == TILE_NOHIT)
+				{
+					g_Config.m_SvHit = 0;
+					dbg_msg("front_layer", "found no weapons hitting others tile");
+				}
+				else if(FrontIndex == TILE_NPH)
+				{
+					m_Tuning.Set("player_hooking", 0);
+					dbg_msg("front_layer", "found no player hooking tile");
+				}
+				else if(FrontIndex >= ENTITY_OFFSET)
+				{
+					m_pController->OnEntity(FrontIndex - ENTITY_OFFSET, x, y, LAYER_FRONT, pFront[Index].m_Flags, Initial);
+				}
+			}
+
+			if(pSwitch)
+			{
+				const int SwitchType = pSwitch[Index].m_Type;
+				// TODO: Add off by default door here
+				// if(SwitchType == TILE_DOOR_OFF)
+				if(SwitchType >= ENTITY_OFFSET)
+				{
+					m_pController->OnEntity(SwitchType - ENTITY_OFFSET, x, y, LAYER_SWITCH, pSwitch[Index].m_Flags, Initial, pSwitch[Index].m_Number);
+				}
+			}
+		}
+	}
 }
 
 void CGameContext::DeleteTempfile()
@@ -3606,15 +3626,15 @@ void CGameContext::OnMapChange(char *pNewMapName, int MapNameSize)
 	{
 		int TypeID;
 		int ItemID;
-		int *pData = (int *)Reader.GetItem(i, &TypeID, &ItemID);
+		void *pData = Reader.GetItem(i, &TypeID, &ItemID);
 		int Size = Reader.GetItemSize(i);
 		CMapItemInfoSettings MapInfo;
 		if(TypeID == MAPITEMTYPE_INFO && ItemID == 0)
 		{
 			FoundInfo = true;
-			CMapItemInfoSettings *pInfo = (CMapItemInfoSettings *)pData;
 			if(Size >= (int)sizeof(CMapItemInfoSettings))
 			{
+				CMapItemInfoSettings *pInfo = (CMapItemInfoSettings *)pData;
 				if(pInfo->m_Settings > -1)
 				{
 					SettingsIndex = pInfo->m_Settings;
@@ -3632,15 +3652,15 @@ void CGameContext::OnMapChange(char *pNewMapName, int MapNameSize)
 				{
 					MapInfo = *pInfo;
 					MapInfo.m_Settings = SettingsIndex;
-					pData = (int *)&MapInfo;
+					pData = &MapInfo;
 					Size = sizeof(MapInfo);
 				}
 			}
 			else
 			{
-				*(CMapItemInfo *)&MapInfo = *(CMapItemInfo *)pInfo;
+				*(CMapItemInfo *)&MapInfo = *(CMapItemInfo *)pData;
 				MapInfo.m_Settings = SettingsIndex;
-				pData = (int *)&MapInfo;
+				pData = &MapInfo;
 				Size = sizeof(MapInfo);
 			}
 		}
@@ -3749,7 +3769,7 @@ void CGameContext::OnSnap(int ClientID)
 {
 	// add tuning to demo
 	CTuningParams StandardTuning;
-	if(ClientID == -1 && Server()->DemoRecorder_IsRecording() && mem_comp(&StandardTuning, &m_Tuning, sizeof(CTuningParams)) != 0)
+	if(Server()->IsRecording(ClientID > -1 ? ClientID : MAX_CLIENTS) && mem_comp(&StandardTuning, &m_Tuning, sizeof(CTuningParams)) != 0)
 	{
 		CMsgPacker Msg(NETMSGTYPE_SV_TUNEPARAMS);
 		int *pParams = (int *)&m_Tuning;
@@ -3855,16 +3875,16 @@ void CGameContext::SendRecord(int ClientID)
 	}
 }
 
-int CGameContext::ProcessSpamProtection(int ClientID, bool RespectChatInitialDelay)
+bool CGameContext::ProcessSpamProtection(int ClientID, bool RespectChatInitialDelay)
 {
 	if(!m_apPlayers[ClientID])
-		return 0;
+		return false;
 	if(g_Config.m_SvSpamprotection && m_apPlayers[ClientID]->m_LastChat && m_apPlayers[ClientID]->m_LastChat + Server()->TickSpeed() * g_Config.m_SvChatDelay > Server()->Tick())
-		return 1;
+		return true;
 	else if(g_Config.m_SvDnsblChat && Server()->DnsblBlack(ClientID))
 	{
 		SendChatTarget(ClientID, "Players are not allowed to chat from VPNs at this time");
-		return 1;
+		return true;
 	}
 	else
 		m_apPlayers[ClientID]->m_LastChat = Server()->Tick();
@@ -3887,17 +3907,17 @@ int CGameContext::ProcessSpamProtection(int ClientID, bool RespectChatInitialDel
 		char aBuf[128];
 		str_format(aBuf, sizeof aBuf, "You are not permitted to talk for the next %d seconds.", Muted);
 		SendChatTarget(ClientID, aBuf);
-		return 1;
+		return true;
 	}
 
 	if(g_Config.m_SvSpamMuteDuration && (m_apPlayers[ClientID]->m_ChatScore += g_Config.m_SvChatPenalty) > g_Config.m_SvChatThreshold)
 	{
 		Mute(&Addr, g_Config.m_SvSpamMuteDuration, Server()->ClientName(ClientID));
 		m_apPlayers[ClientID]->m_ChatScore = 0;
-		return 1;
+		return true;
 	}
 
-	return 0;
+	return false;
 }
 
 int CGameContext::GetDDRaceTeam(int ClientID)
@@ -3925,16 +3945,14 @@ bool CheckClientID2(int ClientID)
 
 void CGameContext::Whisper(int ClientID, char *pStr)
 {
-	char *pName;
-	char *pMessage;
-	int Error = 0;
-
 	if(ProcessSpamProtection(ClientID))
 		return;
 
 	pStr = str_skip_whitespaces(pStr);
 
+	char *pName;
 	int Victim;
+	bool Error = false;
 
 	// add token
 	if(*pStr == '"')
@@ -3958,7 +3976,7 @@ void CGameContext::Whisper(int ClientID, char *pStr)
 			}
 			else if(pStr[0] == 0)
 			{
-				Error = 1;
+				Error = true;
 				break;
 			}
 
@@ -3986,7 +4004,7 @@ void CGameContext::Whisper(int ClientID, char *pStr)
 		{
 			if(pStr[0] == 0)
 			{
-				Error = 1;
+				Error = true;
 				break;
 			}
 			if(pStr[0] == ' ')
@@ -4007,14 +4025,13 @@ void CGameContext::Whisper(int ClientID, char *pStr)
 
 	if(pStr[0] != ' ')
 	{
-		Error = 1;
+		Error = true;
 	}
 
 	*pStr = 0;
 	pStr++;
 
-	pMessage = pStr;
-
+	char *pMessage = pStr;
 	char aBuf[256];
 
 	if(Error)
@@ -4160,7 +4177,7 @@ void CGameContext::List(int ClientID, const char *pFilter)
 			}
 			else
 			{
-				str_format(&aBuf[Bufcnt], sizeof(aBuf) - Bufcnt, "%s", pName);
+				str_copy(&aBuf[Bufcnt], pName, sizeof(aBuf) - Bufcnt);
 				Bufcnt += str_length(pName);
 			}
 		}
@@ -4297,166 +4314,72 @@ bool CGameContext::RateLimitPlayerMapVote(int ClientID)
 	return false;
 }
 
-// DDNet-Skeleton
-void CGameContext::ConSwapTeams(IConsole::IResult *pResult, void *pUserData)
+void CGameContext::OnUpdatePlayerServerInfo(char *aBuf, int BufSize, int ID)
 {
-	CGameContext *pSelf = (CGameContext *)pUserData;
-	if(!pSelf->m_pController->IsTeamplay())
+	if(!m_apPlayers[ID])
 		return;
 
-	pSelf->SendChat(-1, CGameContext::CHAT_ALL, "Teams were swapped");
+	char aCSkinName[64];
 
-	for(auto &m_apPlayer : pSelf->m_apPlayers)
+	CTeeInfo &TeeInfo = m_apPlayers[ID]->m_TeeInfos;
+
+	char aJsonSkin[400];
+	aJsonSkin[0] = '\0';
+
+	if(!Server()->IsSixup(ID))
 	{
-		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
-			m_apPlayer->SetTeam(m_apPlayer->GetTeam() ^ 1, false);
-	}
-
-	(void)pSelf->m_pController->DoTeamBalancingCheck();
-}
-
-void CGameContext::ConShuffleTeams(IConsole::IResult *pResult, void *pUserData)
-{
-	CGameContext *pSelf = (CGameContext *)pUserData;
-	if(!pSelf->m_pController->IsTeamplay())
-		return;
-
-	int CounterRed = 0;
-	int CounterBlue = 0;
-	int PlayerTeam = 0;
-
-	for(auto &m_apPlayer : pSelf->m_apPlayers)
-		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
-			++PlayerTeam;
-
-	PlayerTeam = (PlayerTeam + 1) / 2;
-
-	pSelf->SendChat(-1, CGameContext::CHAT_ALL, "Teams were shuffled");
-
-	for(auto &m_apPlayer : pSelf->m_apPlayers)
-	{
-		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
+		// 0.6
+		if(TeeInfo.m_UseCustomColor)
 		{
-			if(CounterRed == PlayerTeam)
-				m_apPlayer->SetTeam(TEAM_BLUE, false);
-			else if(CounterBlue == PlayerTeam)
-				m_apPlayer->SetTeam(TEAM_RED, false);
-			else
-			{
-				if(rand() % 2)
-				{
-					m_apPlayer->SetTeam(TEAM_BLUE, false);
-					++CounterBlue;
-				}
-				else
-				{
-					m_apPlayer->SetTeam(TEAM_RED, false);
-					++CounterRed;
-				}
-			}
+			str_format(aJsonSkin, sizeof(aJsonSkin),
+				"\"name\":\"%s\","
+				"\"color_body\":%d,"
+				"\"color_feet\":%d",
+				EscapeJson(aCSkinName, sizeof(aCSkinName), TeeInfo.m_aSkinName),
+				TeeInfo.m_ColorBody,
+				TeeInfo.m_ColorFeet);
 		}
-	}
-
-	(void)pSelf->m_pController->DoTeamBalancingCheck();
-}
-
-bool CGameContext::MapExists(const char *pMapName)
-{
-	char aMapFilename[128];
-	str_format(aMapFilename, sizeof(aMapFilename), "%s.map", pMapName);
-
-	char aBuf[512];
-	return Storage()->FindFile(aMapFilename, "maps", IStorage::TYPE_ALL, aBuf, sizeof(aBuf));
-}
-
-void CGameContext::ConSkipMap(IConsole::IResult *pResult, void *pUserData)
-{
-	CGameContext *pSelf = (CGameContext *)pUserData;
-	pSelf->m_pController->SkipMap();
-}
-
-void CGameContext::ConQueueMap(IConsole::IResult *pResult, void *pUserData)
-{
-	CGameContext *pSelf = (CGameContext *)pUserData;
-
-	const char *pMapName = pResult->GetString(0);
-
-	char aBuf[256];
-	if(pSelf->MapExists(pMapName))
-	{
-		str_format(aBuf, sizeof(aBuf), "Map '%s' will be the next map", pMapName);
-		pSelf->m_pController->QueueMap(pResult->GetString(0));
+		else
+		{
+			str_format(aJsonSkin, sizeof(aJsonSkin),
+				"\"name\":\"%s\"",
+				EscapeJson(aCSkinName, sizeof(aCSkinName), TeeInfo.m_aSkinName));
+		}
 	}
 	else
 	{
-		str_format(aBuf, sizeof(aBuf), "Unable to find map '%s'", pMapName);
-	}
+		const char *apPartNames[protocol7::NUM_SKINPARTS] = {"body", "marking", "decoration", "hands", "feet", "eyes"};
+		char aPartBuf[64];
 
-	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
-}
-
-void CGameContext::ConAddMap(IConsole::IResult *pResult, void *pUserData)
-{
-	CGameContext *pSelf = (CGameContext *)pUserData;
-
-	if(pResult->NumArguments() != 1)
-		return;
-
-	const char *pMapName = pResult->GetString(0);
-	if(!str_utf8_check(pMapName))
-	{
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "Invalid (non UTF-8) filename");
-		return;
-	}
-
-	{
-		const char *pMapInList = pSelf->Config()->m_SvMapRotation;
-		const int Length = str_length(pMapName);
-		while(pMapInList)
+		for(int i = 0; i < protocol7::NUM_SKINPARTS; ++i)
 		{
-			pMapInList = str_find(pMapInList, pMapName);
+			str_format(aPartBuf, sizeof(aPartBuf),
+				"%s\"%s\":{"
+				"\"name\":\"%s\"",
+				i == 0 ? "" : ",",
+				apPartNames[i],
+				EscapeJson(aCSkinName, sizeof(aCSkinName), TeeInfo.m_apSkinPartNames[i]));
 
-			if(pMapInList)
+			str_append(aJsonSkin, aPartBuf, sizeof(aJsonSkin));
+
+			if(TeeInfo.m_aUseCustomColors[i])
 			{
-				pMapInList += Length;
-				const char nextC = pMapInList[0];
-				if((nextC == 0) || pSelf->m_pController->IsWordSeparator(nextC))
-				{
-					pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "The map is already in the rotation list");
-					return;
-				}
+				str_format(aPartBuf, sizeof(aPartBuf),
+					",color:%d",
+					TeeInfo.m_aSkinPartColors[i]);
+				str_append(aJsonSkin, aPartBuf, sizeof(aJsonSkin));
 			}
+			str_append(aJsonSkin, "}", sizeof(aJsonSkin));
 		}
 	}
 
-	char aBuf[256];
-	if(!pSelf->MapExists(pMapName))
-	{
-		str_format(aBuf, sizeof(aBuf), "Unable to find map %s", pMapName);
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
-
-		return;
-	}
-
-	char *pData = g_Config.m_SvMapRotation;
-	int MaxSize = sizeof(g_Config.m_SvMapRotation);
-	int i = 0;
-	for(i = 0; i < MaxSize; ++i)
-	{
-		if(pData[i] == 0)
-			break;
-	}
-	if(i + 1 + str_length(pMapName) >= MaxSize)
-	{
-		// Overflow
-		return;
-	}
-	pData[i] = ' ';
-	++i;
-	str_copy(pData + i, pMapName, MaxSize - i);
-
-	{
-		str_format(aBuf, sizeof(aBuf), "Map %s added to the rotation list", pMapName);
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
-	}
+	str_format(aBuf, BufSize,
+		",\"skin\":{"
+		"%s"
+		"},"
+		"\"afk\":%s,"
+		"\"team\":%d",
+		aJsonSkin,
+		JsonBool(m_apPlayers[ID]->IsAfk()),
+		m_apPlayers[ID]->GetTeam());
 }

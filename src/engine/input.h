@@ -68,6 +68,8 @@ public:
 
 	// keys
 	virtual bool ModifierIsPressed() const = 0;
+	virtual bool ShiftIsPressed() const = 0;
+	virtual bool AltIsPressed() const = 0;
 	virtual bool KeyIsPressed(int Key) const = 0;
 	virtual bool KeyPress(int Key, bool CheckCounter = false) const = 0;
 	const char *KeyName(int Key) const { return (Key >= 0 && Key < g_MaxKeys) ? g_aaKeyStrings[Key] : g_aaKeyStrings[0]; }
@@ -84,7 +86,7 @@ public:
 		virtual int GetNumBalls() const = 0;
 		virtual int GetNumHats() const = 0;
 		virtual float GetAxisValue(int Axis) = 0;
-		virtual int GetHatValue(int Hat) = 0;
+		virtual void GetHatValue(int Hat, int (&HatKeys)[2]) = 0;
 		virtual bool Relative(float *pX, float *pY) = 0;
 		virtual bool Absolute(float *pX, float *pY) = 0;
 	};
@@ -128,7 +130,7 @@ class IEngineInput : public IInput
 	MACRO_INTERFACE("engineinput", 0)
 public:
 	virtual void Init() = 0;
-	virtual void Shutdown() = 0;
+	virtual void Shutdown() override = 0;
 	virtual int Update() = 0;
 	virtual int VideoRestartNeeded() = 0;
 };

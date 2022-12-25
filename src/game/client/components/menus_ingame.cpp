@@ -10,6 +10,7 @@
 #include <engine/graphics.h>
 #include <engine/serverbrowser.h>
 #include <engine/shared/config.h>
+#include <engine/shared/localization.h>
 #include <engine/textrender.h>
 
 #include <game/generated/client_data.h>
@@ -20,6 +21,7 @@
 #include <game/client/gameclient.h>
 #include <game/client/render.h>
 #include <game/client/ui.h>
+#include <game/client/ui_scrollregion.h>
 #include <game/localization.h>
 
 #include "menus.h"
@@ -55,11 +57,12 @@ void CMenus::RenderGame(CUIRect MainView)
 	{
 		if(Client()->GetCurrentRaceTime() / 60 >= g_Config.m_ClConfirmDisconnectTime && g_Config.m_ClConfirmDisconnectTime >= 0)
 		{
-			m_Popup = POPUP_DISCONNECT;
+			PopupConfirm(Localize("Disconnect"), Localize("Are you sure that you want to disconnect?"), Localize("Yes"), Localize("No"), &CMenus::PopupConfirmDisconnect);
 		}
 		else
 		{
 			Client()->Disconnect();
+			RefreshBrowserTab(g_Config.m_UiPage);
 		}
 	}
 
@@ -86,7 +89,7 @@ void CMenus::RenderGame(CUIRect MainView)
 		{
 			if(Client()->GetCurrentRaceTime() / 60 >= g_Config.m_ClConfirmDisconnectTime && g_Config.m_ClConfirmDisconnectTime >= 0)
 			{
-				m_Popup = POPUP_DISCONNECT_DUMMY;
+				PopupConfirm(Localize("Disconnect Dummy"), Localize("Are you sure that you want to disconnect your dummy?"), Localize("Yes"), Localize("No"), &CMenus::PopupConfirmDisconnectDummy);
 			}
 			else
 			{
@@ -206,6 +209,17 @@ void CMenus::RenderGame(CUIRect MainView)
 	}
 }
 
+void CMenus::PopupConfirmDisconnect()
+{
+	Client()->Disconnect();
+}
+
+void CMenus::PopupConfirmDisconnectDummy()
+{
+	Client()->DummyDisconnect(0);
+	SetActive(false);
+}
+
 void CMenus::RenderPlayers(CUIRect MainView)
 {
 	CUIRect Button, Button2, ButtonBar, Options, Player;
@@ -238,7 +252,7 @@ void CMenus::RenderPlayers(CUIRect MainView)
 
 	int TotalPlayers = 0;
 
-	for(auto &pInfoByName : m_pClient->m_Snap.m_apInfoByName)
+	for(const auto &pInfoByName : m_pClient->m_Snap.m_apInfoByName)
 	{
 		if(!pInfoByName)
 			continue;
@@ -450,14 +464,30 @@ void CMenus::RenderServerInfo(CUIRect MainView)
 	}
 
 	// motd
-	Motd.HSplitTop(10.0f, 0, &Motd);
+	const float MotdFontSize = 16.0f;
+	Motd.HSplitTop(10.0f, nullptr, &Motd);
 	Motd.Draw(ColorRGBA(1, 1, 1, 0.25f), IGraphics::CORNER_ALL, 10.0f);
-	Motd.Margin(5.0f, &Motd);
-	y = 0.0f;
-	x = 5.0f;
-	TextRender()->Text(0, Motd.x + x, Motd.y + y, 32, Localize("MOTD"), -1.0f);
-	y += 32.0f + 5.0f;
-	TextRender()->Text(0, Motd.x + x, Motd.y + y, 16, m_pClient->m_Motd.m_aServerMotd, Motd.w);
+	Motd.HMargin(5.0f, &Motd);
+	Motd.VMargin(10.0f, &Motd);
+
+	CUIRect MotdHeader;
+	Motd.HSplitTop(2.0f * MotdFontSize, &MotdHeader, &Motd);
+	Motd.HSplitTop(5.0f, nullptr, &Motd);
+	TextRender()->Text(nullptr, MotdHeader.x, MotdHeader.y, 2.0f * MotdFontSize, Localize("MOTD"), -1.0f);
+
+	static CScrollRegion s_ScrollRegion;
+	vec2 ScrollOffset(0.0f, 0.0f);
+	CScrollRegionParams ScrollParams;
+	ScrollParams.m_ScrollUnit = 5 * MotdFontSize;
+	s_ScrollRegion.Begin(&Motd, &ScrollOffset, &ScrollParams);
+	Motd.y += ScrollOffset.y;
+
+	CUIRect MotdTextArea;
+	Motd.HSplitTop((str_countchr(m_pClient->m_Motd.m_aServerMotd, '\n') + 1) * MotdFontSize, &MotdTextArea, &Motd);
+	s_ScrollRegion.AddRect(MotdTextArea);
+	TextRender()->Text(nullptr, MotdTextArea.x, MotdTextArea.y, MotdFontSize, m_pClient->m_Motd.m_aServerMotd, MotdTextArea.w);
+
+	s_ScrollRegion.End();
 }
 
 bool CMenus::RenderServerControlServer(CUIRect MainView)
@@ -509,7 +539,7 @@ bool CMenus::RenderServerControlKick(CUIRect MainView, bool FilterSpectators)
 	int NumOptions = 0;
 	int Selected = 0;
 	static int aPlayerIDs[MAX_CLIENTS];
-	for(auto &pInfoByName : m_pClient->m_Snap.m_apInfoByName)
+	for(const auto &pInfoByName : m_pClient->m_Snap.m_apInfoByName)
 	{
 		if(!pInfoByName)
 			continue;
@@ -956,8 +986,8 @@ void CMenus::RenderGhost(CUIRect MainView)
 	static CColumn s_aCols[] = {
 		{" ", -1, 2.0f, {0}, {0}},
 		{" ", COL_ACTIVE, 30.0f, {0}, {0}},
-		{"Name", COL_NAME, 300.0f, {0}, {0}}, // Localize("Name")
-		{"Time", COL_TIME, 200.0f, {0}, {0}}, // Localize("Time")
+		{Localizable("Name"), COL_NAME, 300.0f, {0}, {0}},
+		{Localizable("Time"), COL_TIME, 200.0f, {0}, {0}},
 	};
 
 	int NumCols = std::size(s_aCols);
@@ -1140,4 +1170,13 @@ void CMenus::RenderGhost(CUIRect MainView)
 		if(DoButton_Menu(&s_SaveButton, Localize("Save"), 0, &Button))
 			m_pClient->m_Ghost.SaveGhost(pGhost);
 	}
+}
+
+void CMenus::RenderIngameHint()
+{
+	float Width = 300 * Graphics()->ScreenAspect();
+	Graphics()->MapScreen(0, 0, Width, 300);
+	TextRender()->TextColor(1, 1, 1, 1);
+	TextRender()->Text(0x0, 5, 280, 5, Localize("Menu opened. Press Esc key again to close menu."), -1.0f);
+	UI()->MapScreen();
 }

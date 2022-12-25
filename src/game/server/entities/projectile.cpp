@@ -54,8 +54,7 @@ CProjectile::CProjectile(
 
 void CProjectile::Reset()
 {
-	if(m_LifeSpan > -2)
-		m_MarkedForDestroy = true;
+	m_MarkedForDestroy = true;
 }
 
 vec2 CProjectile::GetPos(float Time)
@@ -203,7 +202,7 @@ bool CProjectile::FillExtraInfo(CNetObj_DDNetProjectile *pProj)
 		//If the modified data would be too large to fit in an integer, send normal data instead
 		return false;
 	}
-	//Send additional/modified info, by modifiying the fields of the netobj
+	//Send additional/modified info, by modifying the fields of the netobj
 	float Angle = -atan2f(m_Direction.x, m_Direction.y);
 
 	int Data = 0;
