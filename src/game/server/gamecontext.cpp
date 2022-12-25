@@ -4383,3 +4383,167 @@ void CGameContext::OnUpdatePlayerServerInfo(char *aBuf, int BufSize, int ID)
 		JsonBool(m_apPlayers[ID]->IsAfk()),
 		m_apPlayers[ID]->GetTeam());
 }
+
+// DDNet-Skeleton
+void CGameContext::ConSwapTeams(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	if(!pSelf->m_pController->IsTeamplay())
+		return;
+
+	pSelf->SendChat(-1, CGameContext::CHAT_ALL, "Teams were swapped");
+
+	for(auto &m_apPlayer : pSelf->m_apPlayers)
+	{
+		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
+			m_apPlayer->SetTeam(m_apPlayer->GetTeam() ^ 1, false);
+	}
+
+	(void)pSelf->m_pController->DoTeamBalancingCheck();
+}
+
+void CGameContext::ConShuffleTeams(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	if(!pSelf->m_pController->IsTeamplay())
+		return;
+
+	int CounterRed = 0;
+	int CounterBlue = 0;
+	int PlayerTeam = 0;
+
+	for(auto &m_apPlayer : pSelf->m_apPlayers)
+		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
+			++PlayerTeam;
+
+	PlayerTeam = (PlayerTeam + 1) / 2;
+
+	pSelf->SendChat(-1, CGameContext::CHAT_ALL, "Teams were shuffled");
+
+	for(auto &m_apPlayer : pSelf->m_apPlayers)
+	{
+		if(m_apPlayer && m_apPlayer->GetTeam() != TEAM_SPECTATORS)
+		{
+			if(CounterRed == PlayerTeam)
+				m_apPlayer->SetTeam(TEAM_BLUE, false);
+			else if(CounterBlue == PlayerTeam)
+				m_apPlayer->SetTeam(TEAM_RED, false);
+			else
+			{
+				if(rand() % 2)
+				{
+					m_apPlayer->SetTeam(TEAM_BLUE, false);
+					++CounterBlue;
+				}
+				else
+				{
+					m_apPlayer->SetTeam(TEAM_RED, false);
+					++CounterRed;
+				}
+			}
+		}
+	}
+
+	(void)pSelf->m_pController->DoTeamBalancingCheck();
+}
+
+bool CGameContext::MapExists(const char *pMapName)
+{
+	char aMapFilename[128];
+	str_format(aMapFilename, sizeof(aMapFilename), "%s.map", pMapName);
+
+	char aBuf[512];
+	return Storage()->FindFile(aMapFilename, "maps", IStorage::TYPE_ALL, aBuf, sizeof(aBuf));
+}
+
+void CGameContext::ConSkipMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+	pSelf->m_pController->SkipMap();
+}
+
+void CGameContext::ConQueueMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+
+	const char *pMapName = pResult->GetString(0);
+
+	char aBuf[256];
+	if(pSelf->MapExists(pMapName))
+	{
+		str_format(aBuf, sizeof(aBuf), "Map '%s' will be the next map", pMapName);
+		pSelf->m_pController->QueueMap(pResult->GetString(0));
+	}
+	else
+	{
+		str_format(aBuf, sizeof(aBuf), "Unable to find map '%s'", pMapName);
+	}
+
+	pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+}
+
+void CGameContext::ConAddMap(IConsole::IResult *pResult, void *pUserData)
+{
+	CGameContext *pSelf = (CGameContext *)pUserData;
+
+	if(pResult->NumArguments() != 1)
+		return;
+
+	const char *pMapName = pResult->GetString(0);
+	if(!str_utf8_check(pMapName))
+	{
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "Invalid (non UTF-8) filename");
+		return;
+	}
+
+	{
+		const char *pMapInList = pSelf->Config()->m_SvMapRotation;
+		const int Length = str_length(pMapName);
+		while(pMapInList)
+		{
+			pMapInList = str_find(pMapInList, pMapName);
+
+			if(pMapInList)
+			{
+				pMapInList += Length;
+				const char nextC = pMapInList[0];
+				if((nextC == 0) || pSelf->m_pController->IsWordSeparator(nextC))
+				{
+					pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", "The map is already in the rotation list");
+					return;
+				}
+			}
+		}
+	}
+
+	char aBuf[256];
+	if(!pSelf->MapExists(pMapName))
+	{
+		str_format(aBuf, sizeof(aBuf), "Unable to find map %s", pMapName);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+
+		return;
+	}
+
+	char *pData = g_Config.m_SvMapRotation;
+	int MaxSize = sizeof(g_Config.m_SvMapRotation);
+	int i = 0;
+	for(i = 0; i < MaxSize; ++i)
+	{
+		if(pData[i] == 0)
+			break;
+	}
+	if(i + 1 + str_length(pMapName) >= MaxSize)
+	{
+		// Overflow
+		return;
+	}
+	pData[i] = ' ';
+	++i;
+	str_copy(pData + i, pMapName, MaxSize - i);
+
+	{
+		str_format(aBuf, sizeof(aBuf), "Map %s added to the rotation list", pMapName);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "server", aBuf);
+	}
+}
