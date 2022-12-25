@@ -1,4 +1,4 @@
-<p align="center"><img src="https://teeframe.com/img/ddnet-skeleton/logo.png" alt="DDNet-Skeleton Logo"></p>
+<p align="center"><img src="logo.png" alt="DDNet-Skeleton Logo"></p>
 
 # DDNet-Skeleton
 
@@ -6,7 +6,7 @@ This repository aims to be the skeleton for creating modifications on top of the
 
 ## Official Documentation
 
-Documentation for DDNet-Skeleton can be found on the [TeeFrame website](https://teeframe.com/ddnet-skeleton).
+Documentation for DDNet-Skeleton can be found [here](https://github.com/teemods/ddnet-skeleton-readme).
 
 ## Contributing
 
