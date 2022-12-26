@@ -14,8 +14,6 @@
 #include <game/server/teams.h>
 #include <game/version.h>
 
-#include "character.h"
-
 static constexpr int PickupPhysSize = 14;
 
 CPickup::CPickup(CGameWorld *pGameWorld, int Type, int SubType, int Layer, int Number) :
