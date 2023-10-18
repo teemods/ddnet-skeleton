@@ -1541,6 +1541,7 @@ set(EXPECTED_DATA
   maps/Sunny\ Side\ Up.map
   maps/coverage.map
   maps/ctf1.map
+  maps/fng1.map
   maps/ctf2.map
   maps/ctf3.map
   maps/ctf4.map
