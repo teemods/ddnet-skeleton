@@ -11,7 +11,7 @@
 extern const char *GIT_SHORTREV_HASH;
 #define GAME_NAME "DDNet"
 // DDNet-Skeleton
-#define GAME_MOD_NAME "DDNet-Skeleton"
+#define GAME_MOD_NAME "JBFng"
 #define GAME_MOD_RELEASE_VERSION "1.0.0"
 
 #define GAME_MOD_VERSION GAME_VERSION ", " GAME_MOD_RELEASE_VERSION
