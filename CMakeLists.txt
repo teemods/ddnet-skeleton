@@ -1539,10 +1539,9 @@ set(EXPECTED_DATA
   maps/Gold\ Mine.map
   maps/LearnToPlay.map
   maps/Sunny\ Side\ Up.map
-  maps/Tsunami.map
-  maps/Tutorial.map
   maps/coverage.map
   maps/ctf1.map
+  maps/fng1.map
   maps/ctf2.map
   maps/ctf3.map
   maps/ctf4.map

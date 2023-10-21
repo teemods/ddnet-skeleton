@@ -481,7 +481,10 @@ void CCharacter::FireWeapon()
 			Temp -= pTarget->m_Core.m_Vel;
 			pTarget->TakeDamage((vec2(0.f, -1.0f) + Temp) * Strength, g_pData->m_Weapons.m_Hammer.m_pBase->m_Damage,
 				m_pPlayer->GetCID(), m_Core.m_ActiveWeapon);
-			pTarget->UnFreeze();
+
+			if (m_pPlayer->GetTeam() == pTarget->Team()) {
+				pTarget->UnFreeze();
+			}
 
 			if(m_FreezeHammer)
 				pTarget->Freeze();
@@ -981,6 +984,7 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 		m_EmoteType = EMOTE_PAIN;
 		m_EmoteStop = Server()->Tick() + 500 * Server()->TickSpeed() / 1000;
 	}
+
 
 	vec2 Temp = m_Core.m_Vel + Force;
 	m_Core.m_Vel = ClampVel(m_MoveRestrictions, Temp);
@@ -2174,6 +2178,7 @@ bool CCharacter::UnFreeze()
 	}
 	return false;
 }
+
 
 void CCharacter::GiveWeapon(int Weapon, bool Remove, int Ammo)
 {

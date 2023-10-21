@@ -80,9 +80,9 @@ bool CLaser::HitCharacter(vec2 From, vec2 To)
 			pHit->Core()->m_Vel = ClampVel(pHit->m_MoveRestrictions, pHit->Core()->m_Vel);
 		}
 	}
-	else if(m_Type == WEAPON_LASER)
+	else if(m_Type == WEAPON_LASER && pHit->m_FreezeTime == 0)
 	{
-		pHit->UnFreeze();
+		pHit->Freeze(10);
 	}
 	return true;
 }

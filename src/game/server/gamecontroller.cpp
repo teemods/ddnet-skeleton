@@ -32,7 +32,7 @@ IGameController::IGameController(class CGameContext *pGameServer)
 	m_SuddenDeath = 0;
 	m_RoundStartTick = Server()->Tick();
 	m_RoundCount = 0;
-	m_GameFlags = 0;
+	m_GameFlags = GAMEFLAG_TEAMS;
 	m_aMapWish[0] = 0;
 
 	m_UnbalancedTick = -1;
@@ -427,7 +427,7 @@ void IGameController::OnPlayerConnect(CPlayer *pPlayer)
 		GameServer()->Console()->Print(IConsole::OUTPUT_LEVEL_DEBUG, "game", aBuf);
 
 		// DDNet-Skeleton
-		str_format(aBuf, sizeof(aBuf), "'%s' entered and joined the %s", Server()->ClientName(ClientID), GetTeamName(pPlayer->GetTeam()));
+		str_format(aBuf, sizeof(aBuf), "'%s' entered and joined the %s with client version: %d", Server()->ClientName(ClientID), GetTeamName(pPlayer->GetTeam()), Server()->GetClientVersion(ClientID));
 		GameServer()->SendChat(-1, CGameContext::CHAT_ALL, aBuf, -1, CGameContext::CHAT_SIX);
 
 		GameServer()->SendChatTarget(ClientID, GAME_MOD_NAME " Version: " GAME_MOD_VERSION);
@@ -526,7 +526,7 @@ void IGameController::OnCharacterSpawn(class CCharacter *pChr)
 
 	// give default weapons
 	pChr->GiveWeapon(WEAPON_HAMMER);
-	pChr->GiveWeapon(WEAPON_GUN);
+	pChr->GiveWeapon(WEAPON_LASER);
 }
 
 void IGameController::HandleCharacterTiles(CCharacter *pChr, int MapIndex)
@@ -652,24 +652,25 @@ void IGameController::Snap(int SnappingClient)
 		return;
 
 	pGameInfoEx->m_Flags =
+		GAMEINFOFLAG_GAMETYPE_FNG;
 		// GAMEINFOFLAG_TIMESCORE |
 		// GAMEINFOFLAG_GAMETYPE_RACE |
 		// GAMEINFOFLAG_GAMETYPE_DDRACE |
 		// GAMEINFOFLAG_GAMETYPE_DDNET |
 		// GAMEINFOFLAG_UNLIMITED_AMMO |
 		// GAMEINFOFLAG_RACE_RECORD_MESSAGE |
-		GAMEINFOFLAG_ALLOW_EYE_WHEEL |
-		GAMEINFOFLAG_ALLOW_HOOK_COLL |
+		// GAMEINFOFLAG_ALLOW_EYE_WHEEL |
+		// GAMEINFOFLAG_ALLOW_HOOK_COLL |
 		// GAMEINFOFLAG_ALLOW_ZOOM |
 		// GAMEINFOFLAG_BUG_DDRACE_GHOST |
-		GAMEINFOFLAG_BUG_DDRACE_INPUT |
+		// GAMEINFOFLAG_BUG_DDRACE_INPUT |
 		// GAMEINFOFLAG_PREDICT_DDRACE |
-		GAMEINFOFLAG_PREDICT_DDRACE_TILES |
-		GAMEINFOFLAG_ENTITIES_DDNET |
-		GAMEINFOFLAG_ENTITIES_DDRACE |
-		GAMEINFOFLAG_ENTITIES_RACE |
+		// GAMEINFOFLAG_PREDICT_DDRACE_TILES |
+		// GAMEINFOFLAG_ENTITIES_DDNET |
+		// GAMEINFOFLAG_ENTITIES_DDRACE |
+		// GAMEINFOFLAG_ENTITIES_RACE |
 		// GAMEINFOFLAG_RACE |
-		GAMEINFOFLAG_GAMETYPE_PLUS;
+		// GAMEINFOFLAG_GAMETYPE_PLUS;
 	pGameInfoEx->m_Flags2 = GAMEINFOFLAG2_HUD_DDRACE;
 	if(g_Config.m_SvNoWeakHook)
 		pGameInfoEx->m_Flags2 |= GAMEINFOFLAG2_NO_WEAK_HOOK;

@@ -251,7 +251,7 @@ echo "stoprecord" > client1.fifo
 sleep 1
 
 echo "[*] test map change"
-echo "rcon sv_map Tutorial" > client1.fifo
+echo "rcon sv_map fng" > client1.fifo
 if [ "$arg_valgrind_memcheck" == "1" ]; then
 	sleep 30
 else
